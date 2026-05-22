@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -240,19 +241,31 @@ func (m model) seedFeedCmd() tea.Cmd {
 
 		var frontItems []*Item
 		var frontRanks map[int]int
-		if items, ranks, err := fetchFrontPage(throttle); err == nil {
-			frontItems = items
-			frontRanks = ranks
-		}
-
 		var newItems []*Item
-		if ids, err := fetchNewStoryIDs(); err == nil && len(ids) > 0 {
-			count := initial
-			if count > len(ids) {
-				count = len(ids)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			if items, ranks, err := fetchFrontPage(throttle); err == nil {
+				frontItems = items
+				frontRanks = ranks
 			}
-			newItems = fetchItemsParallel(ids[:count], throttle)
-		}
+		}()
+
+		go func() {
+			defer wg.Done()
+			if ids, err := fetchNewStoryIDs(); err == nil && len(ids) > 0 {
+				count := initial
+				if count > len(ids) {
+					count = len(ids)
+				}
+				newItems = fetchItemsParallel(ids[:count], throttle)
+			}
+		}()
+
+		wg.Wait()
 
 		return seedResultMsg{
 			frontItems: frontItems,
