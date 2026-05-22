@@ -134,10 +134,15 @@ func commentURL(id int) string {
 //	(blank)
 func formatNewItemLines(item *Item, width int) []string {
 	t := time.Unix(item.Time, 0).Local().Format("15:04:05")
+	meta := gry + "[NEW]" + rst
 	const timeVisible = 11 // "[HH:mm:ss] "
-	title := truncRunes(item.Title, width-timeVisible)
+	avail := width - timeVisible - len([]rune("[NEW]")) - 1
+	if avail < 1 {
+		avail = 1
+	}
+	title := padRight(truncRunes(item.Title, avail), avail)
 	return []string{
-		gry + "[" + t + "]" + rst + " " + yel + title + rst,
+		gry + "[" + t + "]" + rst + " " + yel + title + rst + " " + meta,
 		"  " + gry + itemURL(item) + rst,
 		"  " + gry + "Comments: " + commentURL(item.ID) + rst,
 		"",
