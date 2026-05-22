@@ -414,7 +414,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if newRank < oldRank {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
 					}
-				} else {
+				} else if !m.st.seenIDs[id] {
 					appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
 				}
 			}
