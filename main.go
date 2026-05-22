@@ -217,7 +217,7 @@ type model struct {
 	pollSec  int
 	throttle int
 	initial  int
-	msAccum  int
+	lastPoll time.Time
 	ready    bool
 }
 
@@ -353,6 +353,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		m.lastPoll = time.Now()
 		m.ready = true
 		return m, nil
 
@@ -363,14 +364,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 
-		m.msAccum += 100
 		cmds := []tea.Cmd{
 			tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 				return tickMsg{}
 			}),
 		}
-		if m.msAccum >= m.pollSec*1000 {
-			m.msAccum = 0
+		if time.Since(m.lastPoll) >= time.Duration(m.pollSec)*time.Second {
+			m.lastPoll = time.Now()
 			cmds = append(cmds, m.pollNowCmd())
 		}
 		return m, tea.Batch(cmds...)
@@ -498,7 +498,8 @@ func (m model) statusText() string {
 	if !m.ready {
 		return "Fetching data…  │  Ctrl+C to quit"
 	}
-	remaining := (m.pollSec*1000 - m.msAccum + 999) / 1000
+	next := m.lastPoll.Add(time.Duration(m.pollSec) * time.Second)
+	remaining := int(time.Until(next).Seconds())
 	if remaining < 1 {
 		remaining = 1
 	}
