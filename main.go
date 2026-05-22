@@ -61,7 +61,6 @@ func fit(s string, width int) string {
 	if vl == width {
 		return s + rst
 	}
-	// Truncate: copy up to (width-1) visible runes preserving ANSI escapes, then add '…'.
 	target := width - 1
 	var sb strings.Builder
 	vis := 0
@@ -268,7 +267,6 @@ func (m model) pollNowCmd() tea.Cmd {
 	return func() tea.Msg {
 		throttle := m.throttle
 
-		// ── New stories ──────────────────────────────────────────────────────
 		var newItems []*Item
 		newMaxID := m.st.maxID
 		if ids, err := fetchNewStoryIDs(); err == nil {
@@ -284,7 +282,6 @@ func (m model) pollNowCmd() tea.Cmd {
 			newItems = fetchItemsParallel(pendingIDs, throttle)
 		}
 
-		// ── Front page ───────────────────────────────────────────────────────
 		var frontItems []*Item
 		var newFrontRanks map[int]int
 		if items, ranks, err := fetchFrontPage(throttle); err == nil {
@@ -330,26 +327,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	// ── Seed result ──────────────────────────────────────────────────────────
 	case seedResultMsg:
 		w := m.width
 		if w < 10 {
 			w = 80
 		}
 
-		// Silently populate frontRanks for all 30 items so the first live poll
-		// only emits genuine changes.
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
 		}
-		// Emit seed front-page entries (top N).
 		for i, item := range msg.frontItems {
 			if i >= m.initial {
 				break
 			}
 			appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w), &m.st.scroll, &m.st.totalItems)
 		}
-		// Emit seed new-story entries (top N).
 		for _, item := range msg.newItems {
 			if item == nil {
 				continue
@@ -364,10 +356,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 		return m, nil
 
-	// ── Tick (100 ms interval) ──────────────────────────────────────────────
 	case tickMsg:
 		if !m.ready {
-			// Seed hasn't completed yet; keep ticking but don't accumulate.
 			return m, tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 				return tickMsg{}
 			})
@@ -385,7 +375,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
-	// ── Poll result ──────────────────────────────────────────────────────────
 	case pollResultMsg:
 		w := m.width
 		if w < 10 {
@@ -393,6 +382,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// New stories
+		oldMaxID := m.st.maxID
 		if msg.newMaxID > m.st.maxID {
 			m.st.maxID = msg.newMaxID
 		}
@@ -403,6 +393,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.st.seenIDs[item.ID] {
 				m.st.seenIDs[item.ID] = true
 				appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+			}
+		}
+
+		for id := range m.st.seenIDs {
+			if id <= oldMaxID {
+				delete(m.st.seenIDs, id)
 			}
 		}
 
@@ -425,7 +421,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.st.frontRanks = msg.newFrontRanks
 		}
 
-		// Trim buffer to 2000 lines
 		if len(m.st.buf) > 2000 {
 			trim := len(m.st.buf) - 2000
 			m.st.buf = m.st.buf[trim:]
@@ -461,7 +456,6 @@ func (m model) View() string {
 
 	var buf strings.Builder
 
-	// Header
 	scrollHint := gry + " (live)" + rst
 	if m.st.scroll > 0 {
 		scrollHint = gry + " [↑ scrolled]" + rst
@@ -469,11 +463,9 @@ func (m model) View() string {
 	buf.WriteString(fit(" "+bold+cyn+"HN Feed"+rst+scrollHint, w))
 	buf.WriteByte('\n')
 
-	// Separator
 	buf.WriteString(gry + strings.Repeat("─", w) + rst)
 	buf.WriteByte('\n')
 
-	// Feed panel
 	maxScroll := len(m.st.buf) - ph
 	if maxScroll < 0 {
 		maxScroll = 0
@@ -496,7 +488,6 @@ func (m model) View() string {
 		buf.WriteByte('\n')
 	}
 
-	// Status bar (blue background, bright white text)
 	status := m.statusText()
 	buf.WriteString("\x1b[44;97m" + fit("  "+status+"  ", w))
 
@@ -507,7 +498,6 @@ func (m model) statusText() string {
 	if !m.ready {
 		return "Fetching data…  │  Ctrl+C to quit"
 	}
-	// Ceiling division (+999) ensures we never display "0s" while a tick is still pending.
 	remaining := (m.pollSec*1000 - m.msAccum + 999) / 1000
 	if remaining < 1 {
 		remaining = 1

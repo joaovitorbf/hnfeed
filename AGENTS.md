@@ -67,4 +67,5 @@ Requires Go 1.26+. Ctrl+C to exit.
 - Populate `frontRanks` for all 30 items at startup before first live poll.
 - Wrap network calls — never crash on transient API failure.
 - Commands must never mutate model directly; send messages to `Update`.
+- Avoid verbose comments. Keep inline comments minimal — the code should be self-documenting.
 - All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body) unless absolutely necessary.
