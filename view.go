@@ -128,6 +128,8 @@ func (m model) buildConfigLines(w int) []string {
 			raw = append(raw, fmt.Sprintf("  %s%s  New story events", cursor, chk))
 		case cfgPollSlider:
 			raw = append(raw, fmt.Sprintf("  %sPoll interval: %ds", cursor, m.config.PollSeconds))
+		case cfgInitItems:
+			raw = append(raw, fmt.Sprintf("  %sInitial items: %d", cursor, m.config.InitialItems))
 		}
 	}
 

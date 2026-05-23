@@ -35,8 +35,6 @@ type model struct {
 	width      int
 	height     int
 	pollSec    int
-	throttle   int
-	initial    int
 	lastPoll   time.Time
 	ready      bool
 	config     feedConfig
@@ -58,8 +56,8 @@ func (m model) Init() tea.Cmd {
 // seedFeedCmd fetches the initial front page and newest stories.
 func (m model) seedFeedCmd() tea.Cmd {
 	return func() tea.Msg {
-		throttle := m.throttle
-		initial := m.initial
+		throttle := 10
+		initial := m.config.InitialItems
 
 		var frontItems []*Item
 		var frontRanks map[int]int
@@ -100,7 +98,7 @@ func (m model) seedFeedCmd() tea.Cmd {
 // pollNowCmd fetches new stories and the current front page for a periodic refresh.
 func (m model) pollNowCmd() tea.Cmd {
 	return func() tea.Msg {
-		throttle := m.throttle
+		throttle := 10
 
 		var newItems []*Item
 		newMaxID := m.st.maxID
@@ -145,6 +143,7 @@ const (
 	cfgFPLeft
 	cfgNSToggle
 	cfgPollSlider
+	cfgInitItems
 )
 
 func (m model) configFields() []cfgField {
@@ -152,7 +151,7 @@ func (m model) configFields() []cfgField {
 	if m.config.ShowFrontPage {
 		fields = append(fields, cfgFPEntered, cfgFPRankUp, cfgFPRankDown, cfgFPLeft)
 	}
-	fields = append(fields, cfgNSToggle, cfgPollSlider)
+	fields = append(fields, cfgNSToggle, cfgPollSlider, cfgInitItems)
 	return fields
 }
 
@@ -194,6 +193,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.pollSec = m.config.PollSeconds
 					saveSettings(m.config)
+				} else if fields[m.configCur] == cfgInitItems {
+					m.config.InitialItems--
+					if m.config.InitialItems < 1 {
+						m.config.InitialItems = 1
+					}
+					saveSettings(m.config)
 				}
 			case msg.Type == tea.KeyRight, string(msg.Runes) == "=", string(msg.Runes) == "+":
 				if fields[m.configCur] == cfgPollSlider {
@@ -202,6 +207,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.config.PollSeconds = 300
 					}
 					m.pollSec = m.config.PollSeconds
+					saveSettings(m.config)
+				} else if fields[m.configCur] == cfgInitItems {
+					m.config.InitialItems++
+					if m.config.InitialItems > 50 {
+						m.config.InitialItems = 50
+					}
 					saveSettings(m.config)
 				}
 			case msg.Type == tea.KeyEnter, string(msg.Runes) == " ":
@@ -263,7 +274,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.config.ShowFrontPage && m.config.FrontEntered {
 			for i, item := range msg.frontItems {
-				if i >= m.initial {
+				if i >= m.config.InitialItems {
 					break
 				}
 				m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w))

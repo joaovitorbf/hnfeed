@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -9,9 +8,6 @@ import (
 )
 
 func main() {
-	initialItems := flag.Int("initialItems", 5, "stories loaded from each source on startup")
-	throttleLimit := flag.Int("throttleLimit", 10, "max parallel item fetches")
-	flag.Parse()
 
 	cfg := loadSettings()
 	m := model{
@@ -20,10 +16,8 @@ func main() {
 			frontCache: make(map[int]*Item),
 			seenIDs:    make(map[int]bool),
 		},
-		config:   cfg,
-		pollSec:  cfg.PollSeconds,
-		throttle: *throttleLimit,
-		initial:  *initialItems,
+		config:  cfg,
+		pollSec: cfg.PollSeconds,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())

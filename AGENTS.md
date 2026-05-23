@@ -15,7 +15,7 @@ HN "new" and front page into one chronological stream using
 | `config.go` | Configuration struct and JSON persistence |
 | `feed.go` | `feedState` struct |
 | `format.go` | Entry formatters and buffer helpers |
-| `main.go` | Entry point, flag parsing, program setup |
+| `main.go` | Entry point, program setup |
 | `model.go` | Bubbletea model, messages, commands, update loop |
 | `view.go` | Rendering: header, feed panel, settings overlay, status bar |
 
@@ -68,6 +68,7 @@ Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
 | `FrontLeft` | `false` | Show `✕ #N` when an item leaves the top 30 |
 | `ShowNewStories` | `true` | Show new-story entries |
 | `PollSeconds` | `30` | Seconds between refreshes |
+| `InitialItems` | `5` | Stories loaded from each source on startup |
 
 Sub-options (`FrontEntered`, `FrontRankUp`, `FrontRankDown`, `FrontLeft`) are
 indented under **Front page events** in the settings UI and are only shown
@@ -83,13 +84,13 @@ missing or corrupt, defaults are used.
 ## Startup
 
 `Init()` launches async `seedFeedCmd`. On `seedResultMsg`: populate
-`frontRanks` silently, emit `initialItems` front-page entries + newest stories,
+`frontRanks` silently, emit `InitialItems` front-page entries + newest stories,
 set `ready = true` to begin live polls.
 
 ## Running
 
 ```
-go build -o hnfeed . && ./hnfeed [-initialItems 5] [-throttleLimit 10]
+go build -o hnfeed .
 ```
 
 Requires Go 1.26+. `Ctrl+C` to exit, `?`/`F1` for settings.

@@ -17,6 +17,7 @@ type feedConfig struct {
 	FrontRankDown  bool `json:"front_rank_down"`
 	FrontLeft      bool `json:"front_left"`
 	PollSeconds    int  `json:"poll_seconds"`
+	InitialItems   int  `json:"initial_items"`
 }
 
 func loadSettings() feedConfig {
@@ -26,16 +27,20 @@ func loadSettings() feedConfig {
 		FrontEntered:   true,
 		FrontRankUp:    true,
 		PollSeconds:    30,
+		InitialItems:   5,
 	}
 	data, err := os.ReadFile(settingsFile)
 	if err != nil {
 		return cfg
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return feedConfig{ShowFrontPage: true, ShowNewStories: true, PollSeconds: 30}
+		return feedConfig{ShowFrontPage: true, ShowNewStories: true, PollSeconds: 30, InitialItems: 5}
 	}
 	if cfg.PollSeconds < 5 {
 		cfg.PollSeconds = 30
+	}
+	if cfg.InitialItems < 1 {
+		cfg.InitialItems = 5
 	}
 	return cfg
 }
