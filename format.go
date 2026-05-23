@@ -26,17 +26,16 @@ func commentURL(id int) string {
 //	(blank)
 func formatNewItemLines(item *Item, width int) []string {
 	t := time.Unix(item.Time, 0).Local().Format("15:04:05")
-	meta := gry + "[NEW]" + rst
 	const timeVisible = 11 // "[HH:mm:ss] "
 	avail := width - timeVisible - len([]rune("[NEW]")) - 1
 	if avail < 1 {
 		avail = 1
 	}
-	title := padRight(truncRunes(item.Title, avail), avail)
+	title := truncPad(item.Title, avail)
 	return []string{
-		gry + "[" + t + "]" + rst + " " + yel + title + rst + " " + meta,
-		"  " + gry + itemURL(item) + rst,
-		"  " + gry + "Comments: " + commentURL(item.ID) + rst,
+		grayStyle.Render("["+t+"]") + " " + yellowStyle.Render(title) + " " + grayStyle.Render("[NEW]"),
+		"  " + grayStyle.Render(itemURL(item)),
+		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
 		"",
 	}
 }
@@ -56,11 +55,11 @@ func formatFrontEventLines(item *Item, prefix string, width int) []string {
 	if avail < 1 {
 		avail = 1
 	}
-	title := padRight(truncRunes(item.Title, avail), avail)
+	title := truncPad(item.Title, avail)
 	return []string{
-		gry + "[" + t + "]" + rst + " " + org + prefix + title + rst + " " + gry + metaPlain + rst,
-		"  " + gry + itemURL(item) + rst,
-		"  " + gry + "Comments: " + commentURL(item.ID) + rst,
+		grayStyle.Render("["+t+"]") + " " + orangeStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
+		"  " + grayStyle.Render(itemURL(item)),
+		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
 		"",
 	}
 }
@@ -75,11 +74,11 @@ func formatFrontLeaveLine(item *Item, oldRank int, width int) []string {
 	if avail < 1 {
 		avail = 1
 	}
-	title := padRight(truncRunes(item.Title, avail), avail)
+	title := truncPad(item.Title, avail)
 	return []string{
-		gry + "[" + t + "]" + rst + " " + gry + prefix + title + rst + " " + gry + metaPlain + rst,
-		"  " + gry + itemURL(item) + rst,
-		"  " + gry + "Comments: " + commentURL(item.ID) + rst,
+		grayStyle.Render("["+t+"]") + " " + grayStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
+		"  " + grayStyle.Render(itemURL(item)),
+		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
 		"",
 	}
 }

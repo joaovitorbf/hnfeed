@@ -11,7 +11,7 @@ HN "new" and front page into one chronological stream using
 | File | Responsibility |
 |---|---|
 | `hn.go` | `Item` struct and HN API fetchers |
-| `ansi.go` | ANSI colour constants and text helpers |
+| `style.go` | Lipgloss styles and ANSI-safe text helpers (`fit`, `truncPad`) |
 | `config.go` | Configuration struct and JSON persistence |
 | `feed.go` | `feedState` struct |
 | `format.go` | Entry formatters and buffer helpers |
@@ -97,8 +97,8 @@ Requires Go 1.26+. `Ctrl+C` to exit, `?`/`F1` for settings.
 
 ## Guidelines
 
-- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `ansi.go` (ANSI helpers), `feed.go` (state struct), `main.go` (entry point). No build tags.
-- Use `measureVisible`/`fit` for ANSI-safe width accounting.
+- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state struct), `main.go` (entry point). No build tags.
+- Use `fit`/`truncPad` from `style.go` for ANSI-safe width accounting.
 - Every entry in `buf` must be exactly 4 lines.
 - Use `appendEntry()` for adding entries; decrement `scroll` when trimming.
 - Populate `frontRanks` for all 30 items at startup before first live poll.

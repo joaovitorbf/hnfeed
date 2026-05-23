@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ── View ──────────────────────────────────────────────────────────────────────
@@ -24,17 +26,17 @@ func (m model) View() string {
 
 	var buf strings.Builder
 
-	scrollHint := gry + " (live)" + rst
+	scrollHint := grayStyle.Render("(live)")
 	if m.st.scroll > 0 {
-		scrollHint = gry + " [↑ scrolled]" + rst
+		scrollHint = grayStyle.Render("[↑ scrolled]")
 	}
 	if m.configOpen {
-		scrollHint = gry + " (settings)" + rst
+		scrollHint = grayStyle.Render("(settings)")
 	}
-	buf.WriteString(fit(" "+bold+cyn+"HN Feed"+rst+scrollHint, w))
+	buf.WriteString(fit(titleStyle.Render(" HN Feed ")+scrollHint, w))
 	buf.WriteByte('\n')
 
-	buf.WriteString(gry + strings.Repeat("─", w) + rst)
+	buf.WriteString(grayStyle.Render(strings.Repeat("─", w)))
 	buf.WriteByte('\n')
 
 	if m.configOpen {
@@ -45,7 +47,7 @@ func (m model) View() string {
 			if row >= cfgTop && row < cfgTop+len(cfgLines) {
 				line = cfgLines[row-cfgTop]
 			}
-			buf.WriteString(rst + fit(line, w))
+			buf.WriteString(fit(line, w))
 			buf.WriteByte('\n')
 		}
 	} else {
@@ -67,13 +69,19 @@ func (m model) View() string {
 			if li < len(m.st.buf) {
 				line = m.st.buf[li]
 			}
-			buf.WriteString(rst + fit(line, w))
+			buf.WriteString(fit(line, w))
 			buf.WriteByte('\n')
 		}
 	}
 
 	status := m.statusText()
-	buf.WriteString("\x1b[44;97m" + fit("  "+status+"  ", w))
+	buf.WriteString(
+		lipgloss.NewStyle().
+			Background(lipgloss.Color("4")).
+			Foreground(lipgloss.Color("15")).
+			Width(w).
+			Render("  " + status + "  "),
+	)
 
 	return buf.String()
 }
@@ -82,7 +90,7 @@ func (m model) buildConfigLines(w int) []string {
 	fields := m.configFields()
 
 	var raw []string
-	raw = append(raw, bold+"  Configuration"+rst, "")
+	raw = append(raw, boldStyle.Render("  Configuration"), "")
 
 	for i, f := range fields {
 		cursor := "  "
@@ -134,16 +142,16 @@ func (m model) buildConfigLines(w int) []string {
 	}
 
 	raw = append(raw, "")
-	raw = append(raw, gry+"  ↑↓ Navigate          Space toggle"+rst)
-	raw = append(raw, gry+"  ← → adjust value     ?/F1/Esc close"+rst)
+	raw = append(raw, grayStyle.Render("  ↑↓ Navigate          Space toggle"))
+	raw = append(raw, grayStyle.Render("  ← → adjust value     ?/F1/Esc close"))
 
 	lines := make([]string, len(raw))
 	for i, line := range raw {
-		vl := measureVisible(line)
-		if vl < w {
-			lines[i] = line + strings.Repeat(" ", w-vl) + rst
+		lw := lipgloss.Width(line)
+		if lw < w {
+			lines[i] = line + strings.Repeat(" ", w-lw)
 		} else {
-			lines[i] = line + rst
+			lines[i] = line
 		}
 	}
 
