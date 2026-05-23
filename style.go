@@ -9,11 +9,24 @@ import (
 // ── Lipgloss styles ───────────────────────────────────────────────────────────
 
 var (
-	yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	grayStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	orangeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	boldStyle   = lipgloss.NewStyle().Bold(true)
-	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	yellowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	grayStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	orangeStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	boldStyle    = lipgloss.NewStyle().Bold(true)
+	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	configBorder = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6"))
+	configSection = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	cursorStyle  = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	// Manual ANSI for checkboxes — sets/resets only foreground and bold so that
+	// any outer background style (e.g. cursor highlight) is preserved.
+	greenCheck  = "\033[32;1m"     // green + bold
+	grayCheck   = "\033[38;5;8m"    // ANSI 256 colour #8 (gray)
+	resetFgBold = "\033[39;22m"    // foreground default + bold off
+	valStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	dimStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	helpTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	arrowStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 )
 
 // ── ANSI-safe text helpers ────────────────────────────────────────────────────

@@ -11,13 +11,13 @@ HN "new" and front page into one chronological stream using
 | File | Responsibility |
 |---|---|
 | `hn.go` | `Item` struct and HN API fetchers |
-| `style.go` | Lipgloss styles and ANSI-safe text helpers (`fit`, `truncPad`) |
+| `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.) and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
 | `config.go` | Configuration struct and JSON persistence |
 | `feed.go` | `feedState` struct |
 | `format.go` | Entry formatters and buffer helpers |
 | `main.go` | Entry point, program setup |
 | `model.go` | Bubbletea model, messages, commands, update loop |
-| `view.go` | Rendering: header, feed panel, settings overlay, status bar |
+| `view.go` | Rendering: header, feed panel, settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), status bar |
 
 ## API
 
@@ -62,6 +62,41 @@ rank drops, and items that left the top 30).
 
 Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
 `↑`/`↓`, toggle filters with `Space`/`Enter`, adjust numeric values with `←`/`→`, close with `Esc`.
+
+### Layout
+
+The settings page is rendered inside a rounded-border panel:
+
+```
+╭──────────────────────────────────────────────╮
+│  ─────────────── Events ──────────────────── │
+│                                                │
+│    ✓ Front page events                        │
+│      ✓ Entered front page                     │
+│    ▸ ✓ Ranking up                   ← cursor  │
+│        ✓ Compare to best rank                 │
+│      ✗ Ranking down                           │
+│      ✗ Left front page                        │
+│    ✓ New story events                         │
+│                                                │
+│  ──────────── Feed Settings ───────────────── │
+│                                                │
+│    Poll interval     30s  ◀  ▶                │
+│    Initial items       5  ◀  ▶                │
+│                                                │
+│  ↑↓ navigate  │  Space toggle  │  ←→ adjust  │  Esc close │
+╰──────────────────────────────────────────────╯
+```
+
+- **Bordered panel**: Rounded corners with cyan border.
+- **Section dividers**: Labels centered and flanked by dashes.
+- **Cursor row**: Full-row dark gray background (`cursorStyle`).
+- **Checkboxes**: Green `[✓]` when enabled, gray `[✗]` when disabled. Uses
+  manual ANSI sequences (`greenCheck`, `grayCheck`, `resetFgBold`) that only
+  toggle foreground and bold, preserving any outer cursor background.
+- **Numeric values**: Yellow bold, right-aligned in a 4-wide field so the
+  adjustment arrows (`◀  ▶`) align vertically across rows.
+- **Help bar**: Key bindings in bold cyan separated by `│`.
 
 | Field | Default | Purpose |
 |---|---|---|
