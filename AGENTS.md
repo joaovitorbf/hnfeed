@@ -51,11 +51,15 @@ Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
 
 | Field | Default | Purpose |
 |---|---|---|
-| `showFrontPage` | `true` | Show front-page events (entries and rank-ups) |
-| `showNewStories` | `true` | Show new-story entries |
+| `ShowFrontPage` | `true` | Show front-page events (entries and rank-ups) |
+| `ShowNewStories` | `true` | Show new-story entries |
 
 The header shows `(settings)` while the settings page is open. Filtering only
 affects newly arriving entries — existing ones in the buffer remain visible.
+
+Settings are persisted to `hnfeed-settings.json` in the current directory.
+Saved automatically on every toggle and loaded on startup. If the file is
+missing or corrupt, defaults are used.
 
 ## Startup
 

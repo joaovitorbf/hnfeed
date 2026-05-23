@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -196,9 +197,34 @@ type feedState struct {
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
+const settingsFile = "hnfeed-settings.json"
+
 type feedConfig struct {
-	showFrontPage  bool
-	showNewStories bool
+	ShowFrontPage  bool `json:"show_front_page"`
+	ShowNewStories bool `json:"show_new_stories"`
+}
+
+func loadSettings() feedConfig {
+	cfg := feedConfig{
+		ShowFrontPage:  true,
+		ShowNewStories: true,
+	}
+	data, err := os.ReadFile(settingsFile)
+	if err != nil {
+		return cfg
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return feedConfig{ShowFrontPage: true, ShowNewStories: true}
+	}
+	return cfg
+}
+
+func saveSettings(cfg feedConfig) {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(settingsFile, data, 0644)
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
@@ -358,10 +384,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case msg.Type == tea.KeyEnter, string(msg.Runes) == " ":
 				switch m.configCur {
 				case 0:
-					m.config.showFrontPage = !m.config.showFrontPage
+					m.config.ShowFrontPage = !m.config.ShowFrontPage
 				case 1:
-					m.config.showNewStories = !m.config.showNewStories
+					m.config.ShowNewStories = !m.config.ShowNewStories
 				}
+				saveSettings(m.config)
 			case msg.Type == tea.KeyEsc:
 				m.configOpen = false
 			}
@@ -392,7 +419,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
 		}
-		if m.config.showFrontPage {
+		if m.config.ShowFrontPage {
 			for i, item := range msg.frontItems {
 				if i >= m.initial {
 					break
@@ -405,7 +432,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				continue
 			}
 			m.st.seenIDs[item.ID] = true
-			if m.config.showNewStories {
+			if m.config.ShowNewStories {
 				appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
 			}
 			if item.ID > m.st.maxID {
@@ -452,7 +479,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if !m.st.seenIDs[item.ID] {
 				m.st.seenIDs[item.ID] = true
-				if m.config.showNewStories {
+				if m.config.ShowNewStories {
 					appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
 				}
 			}
@@ -473,11 +500,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id := item.ID
 				newRank := msg.newFrontRanks[id]
 				if oldRank, exists := m.st.frontRanks[id]; exists {
-					if newRank < oldRank && m.config.showFrontPage {
+					if newRank < oldRank && m.config.ShowFrontPage {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
 					}
 				} else if !m.st.seenIDs[id] {
-					if m.config.showFrontPage {
+					if m.config.ShowFrontPage {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
 					}
 				}
@@ -576,11 +603,11 @@ func (m model) View() string {
 
 func (m model) buildConfigLines(w int) []string {
 	fpChecked := "[ ]"
-	if m.config.showFrontPage {
+	if m.config.ShowFrontPage {
 		fpChecked = "[x]"
 	}
 	nsChecked := "[ ]"
-	if m.config.showNewStories {
+	if m.config.ShowNewStories {
 		nsChecked = "[x]"
 	}
 
@@ -647,10 +674,7 @@ func main() {
 			frontRanks: make(map[int]int),
 			seenIDs:    make(map[int]bool),
 		},
-		config: feedConfig{
-			showFrontPage:  true,
-			showNewStories: true,
-		},
+		config:   loadSettings(),
 		pollSec:  *pollSeconds,
 		throttle: *throttleLimit,
 		initial:  *initialItems,

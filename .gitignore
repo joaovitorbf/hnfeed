@@ -35,3 +35,4 @@ dist/
 hnfeed
 hnfeed.exe
 .local/
+hnfeed-settings.json
