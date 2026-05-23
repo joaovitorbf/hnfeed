@@ -68,9 +68,9 @@ Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
 | `ShowFrontPage` | `true` | Master toggle for all front-page events |
 | `FrontEntered` | `true` | Show `★ #N` when an item enters the front page |
 | `FrontRankUp` | `true` | Show `↑ #N (was #M)` on rank improvement |
-| `FrontRankUpPeak` | `true` | Compare rank-up to all-time best rank (`↑ #N (best #M)`) |
+| `FrontRankUpPeak` | `true` | Only show rank-up on new best rank (`↑ #N (best #M)`); regular changes hidden |
 | `FrontRankDown` | `false` | Show `↓ #N (was #M)` on rank drop |
-| `FrontRankDownWorst` | `true` | Compare rank-down to all-time worst rank (`↓ #N (worst #M)`) |
+| `FrontRankDownWorst` | `true` | Only show rank-down on new worst rank (`↓ #N (worst #M)`); regular changes hidden |
 | `FrontLeft` | `false` | Show `✕ #N` when an item leaves the top 30 |
 | `ShowNewStories` | `true` | Show new-story entries |
 | `PollSeconds` | `30` | Seconds between refreshes |
