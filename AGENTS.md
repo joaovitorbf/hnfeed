@@ -44,6 +44,19 @@ against `frontRanks` → front-page events (new entries and rank improvements).
 | `scroll` | Lines scrolled up from bottom (0 = live) |
 | `totalItems` | Total entries ever appended |
 
+## Settings
+
+Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
+`↑`/`↓`, toggle filters with `Space`/`Enter`, close with `Esc`.
+
+| Field | Default | Purpose |
+|---|---|---|
+| `showFrontPage` | `true` | Show front-page events (entries and rank-ups) |
+| `showNewStories` | `true` | Show new-story entries |
+
+The header shows `(settings)` while the settings page is open. Filtering only
+affects newly arriving entries — existing ones in the buffer remain visible.
+
 ## Startup
 
 `Init()` launches async `seedFeedCmd`. On `seedResultMsg`: populate
@@ -56,7 +69,7 @@ set `ready = true` to begin live polls.
 go build -o hnfeed . && ./hnfeed [-pollSeconds 30] [-initialItems 5] [-throttleLimit 10]
 ```
 
-Requires Go 1.26+. Ctrl+C to exit.
+Requires Go 1.26+. `Ctrl+C` to exit, `?`/`F1` for settings.
 
 ## Guidelines
 

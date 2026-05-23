@@ -194,6 +194,13 @@ type feedState struct {
 	totalItems int          // total entries ever appended
 }
 
+// ── Configuration ─────────────────────────────────────────────────────────────
+
+type feedConfig struct {
+	showFrontPage  bool
+	showNewStories bool
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 // tickMsg fires every 100 ms to drive the poll timer.
@@ -225,6 +232,9 @@ type model struct {
 	initial  int
 	lastPoll time.Time
 	ready    bool
+	config     feedConfig
+	configOpen bool
+	configCur  int
 }
 
 func (m model) Init() tea.Cmd {
@@ -326,8 +336,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
+		}
+		// Toggle config overlay with F1 or ?
+		if msg.Type == tea.KeyF1 || string(msg.Runes) == "?" {
+			m.configOpen = !m.configOpen
+			m.configCur = 0
+			return m, nil
+		}
+		if m.configOpen {
+			switch {
+			case msg.Type == tea.KeyUp:
+				if m.configCur > 0 {
+					m.configCur--
+				}
+			case msg.Type == tea.KeyDown:
+				if m.configCur < 1 {
+					m.configCur++
+				}
+			case msg.Type == tea.KeyEnter, string(msg.Runes) == " ":
+				switch m.configCur {
+				case 0:
+					m.config.showFrontPage = !m.config.showFrontPage
+				case 1:
+					m.config.showNewStories = !m.config.showNewStories
+				}
+			case msg.Type == tea.KeyEsc:
+				m.configOpen = false
+			}
+			return m, nil
 		}
 		return m, nil
 
@@ -354,18 +392,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
 		}
-		for i, item := range msg.frontItems {
-			if i >= m.initial {
-				break
+		if m.config.showFrontPage {
+			for i, item := range msg.frontItems {
+				if i >= m.initial {
+					break
+				}
+				appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w), &m.st.scroll, &m.st.totalItems)
 			}
-			appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w), &m.st.scroll, &m.st.totalItems)
 		}
 		for _, item := range msg.newItems {
 			if item == nil {
 				continue
 			}
 			m.st.seenIDs[item.ID] = true
-			appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+			if m.config.showNewStories {
+				appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+			}
 			if item.ID > m.st.maxID {
 				m.st.maxID = item.ID
 			}
@@ -410,7 +452,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if !m.st.seenIDs[item.ID] {
 				m.st.seenIDs[item.ID] = true
-				appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+				if m.config.showNewStories {
+					appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+				}
 			}
 		}
 
@@ -429,11 +473,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id := item.ID
 				newRank := msg.newFrontRanks[id]
 				if oldRank, exists := m.st.frontRanks[id]; exists {
-					if newRank < oldRank {
+					if newRank < oldRank && m.config.showFrontPage {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
 					}
 				} else if !m.st.seenIDs[id] {
-					appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
+					if m.config.showFrontPage {
+						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
+					}
 				}
 			}
 			m.st.frontRanks = msg.newFrontRanks
@@ -478,38 +524,96 @@ func (m model) View() string {
 	if m.st.scroll > 0 {
 		scrollHint = gry + " [↑ scrolled]" + rst
 	}
+	if m.configOpen {
+		scrollHint = gry + " (settings)" + rst
+	}
 	buf.WriteString(fit(" "+bold+cyn+"HN Feed"+rst+scrollHint, w))
 	buf.WriteByte('\n')
 
 	buf.WriteString(gry + strings.Repeat("─", w) + rst)
 	buf.WriteByte('\n')
 
-	maxScroll := len(m.st.buf) - ph
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	sc := m.st.scroll
-	if sc > maxScroll {
-		sc = maxScroll
-	}
-	startIdx := len(m.st.buf) - ph - sc
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	for row := 0; row < ph; row++ {
-		li := startIdx + row
-		line := ""
-		if li < len(m.st.buf) {
-			line = m.st.buf[li]
+	if m.configOpen {
+		cfgLines := m.buildConfigLines(w)
+		cfgTop := 0
+		for row := 0; row < ph; row++ {
+			var line string
+			if row >= cfgTop && row < cfgTop+len(cfgLines) {
+				line = cfgLines[row-cfgTop]
+			}
+			buf.WriteString(rst + fit(line, w))
+			buf.WriteByte('\n')
 		}
-		buf.WriteString(rst + fit(line, w))
-		buf.WriteByte('\n')
+	} else {
+		maxScroll := len(m.st.buf) - ph
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		sc := m.st.scroll
+		if sc > maxScroll {
+			sc = maxScroll
+		}
+		startIdx := len(m.st.buf) - ph - sc
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		for row := 0; row < ph; row++ {
+			li := startIdx + row
+			line := ""
+			if li < len(m.st.buf) {
+				line = m.st.buf[li]
+			}
+			buf.WriteString(rst + fit(line, w))
+			buf.WriteByte('\n')
+		}
 	}
 
 	status := m.statusText()
 	buf.WriteString("\x1b[44;97m" + fit("  "+status+"  ", w))
 
 	return buf.String()
+}
+
+func (m model) buildConfigLines(w int) []string {
+	fpChecked := "[ ]"
+	if m.config.showFrontPage {
+		fpChecked = "[x]"
+	}
+	nsChecked := "[ ]"
+	if m.config.showNewStories {
+		nsChecked = "[x]"
+	}
+
+	curFP := "  "
+	curNS := "  "
+	if m.configCur == 0 {
+		curFP = "▸ "
+	}
+	if m.configCur == 1 {
+		curNS = "▸ "
+	}
+
+	raw := []string{
+		bold + "  Configuration" + rst,
+		"",
+		"  " + curFP + fpChecked + "  Get front page events",
+		"  " + curNS + nsChecked + "  Get new story events",
+		"",
+		gry + "  ↑↓ Navigate          Space toggle" + rst,
+		gry + "  ?/F1/Esc close" + rst,
+	}
+
+	lines := make([]string, len(raw))
+	for i, line := range raw {
+		vl := measureVisible(line)
+		if vl < w {
+			lines[i] = line + strings.Repeat(" ", w-vl) + rst
+		} else {
+			lines[i] = line + rst
+		}
+	}
+
+	return lines
 }
 
 func (m model) statusText() string {
@@ -527,7 +631,7 @@ func (m model) statusText() string {
 	} else {
 		tStr = fmt.Sprintf("%ds", remaining)
 	}
-	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  Ctrl+C to quit", tStr, m.st.totalItems)
+	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  ?/F1 settings  │  Ctrl+C to quit", tStr, m.st.totalItems)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -542,6 +646,10 @@ func main() {
 		st: feedState{
 			frontRanks: make(map[int]int),
 			seenIDs:    make(map[int]bool),
+		},
+		config: feedConfig{
+			showFrontPage:  true,
+			showNewStories: true,
 		},
 		pollSec:  *pollSeconds,
 		throttle: *throttleLimit,
