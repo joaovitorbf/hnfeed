@@ -9,24 +9,11 @@ front page into one chronological stream with colour-coded events.
 ## Quick start
 
 ```bash
-git clone https://codeberg.org/jvbf/hnfeed.git
-cd hnfeed
-go build -o hnfeed .
-./hnfeed
+go install codeberg.org/jvbf/hnfeed@latest
+hnfeed
 ```
 
 Requires Go 1.26+.
-
-## Usage
-
-```
-./hnfeed [-initialItems 5] [-throttleLimit 10]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `-initialItems` | `5` | Stories loaded from each source on startup |
-| `-throttleLimit` | `10` | Max parallel API fetches |
 
 `Ctrl+C` to quit.
 

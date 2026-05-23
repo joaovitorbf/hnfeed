@@ -1,4 +1,4 @@
-module hnfeed
+module codeberg.org/jvbf/hnfeed
 
 go 1.26.3
 
