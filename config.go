@@ -34,7 +34,14 @@ func loadSettings() feedConfig {
 		return cfg
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return feedConfig{ShowFrontPage: true, ShowNewStories: true, PollSeconds: 30, InitialItems: 5}
+		return feedConfig{
+			ShowFrontPage:  true,
+			ShowNewStories: true,
+			FrontEntered:   true,
+			FrontRankUp:    true,
+			PollSeconds:    30,
+			InitialItems:   5,
+		}
 	}
 	if cfg.PollSeconds < 5 {
 		cfg.PollSeconds = 30
