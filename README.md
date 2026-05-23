@@ -13,7 +13,8 @@ go install codeberg.org/jvbf/hnfeed@latest
 hnfeed
 ```
 
-Requires Go 1.26+.
+Requires Go 1.26+. Make sure `~/go/bin` is in your `$PATH` (or wherever
+`$(go env GOBIN)` points). Go doesn't add it automatically.
 
 `Ctrl+C` to quit.
 
