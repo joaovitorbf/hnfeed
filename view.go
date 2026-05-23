@@ -116,12 +116,24 @@ func (m model) buildConfigLines(w int) []string {
 				chk = "[x]"
 			}
 			raw = append(raw, fmt.Sprintf("    %s%s  Ranking up", cursor, chk))
+		case cfgFrontRankUpPeak:
+			chk := "[ ]"
+			if m.config.FrontRankUpPeak {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("      %s%s  Compare to best rank", cursor, chk))
 		case cfgFPRankDown:
 			chk := "[ ]"
 			if m.config.FrontRankDown {
 				chk = "[x]"
 			}
 			raw = append(raw, fmt.Sprintf("    %s%s  Ranking down", cursor, chk))
+		case cfgFrontRankDownWorst:
+			chk := "[ ]"
+			if m.config.FrontRankDownWorst {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("      %s%s  Compare to worst rank", cursor, chk))
 		case cfgFPLeft:
 			chk := "[ ]"
 			if m.config.FrontLeft {

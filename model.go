@@ -139,7 +139,9 @@ const (
 	cfgFPToggle cfgField = iota
 	cfgFPEntered
 	cfgFPRankUp
+	cfgFrontRankUpPeak
 	cfgFPRankDown
+	cfgFrontRankDownWorst
 	cfgFPLeft
 	cfgNSToggle
 	cfgPollSlider
@@ -149,7 +151,15 @@ const (
 func (m model) configFields() []cfgField {
 	fields := []cfgField{cfgFPToggle}
 	if m.config.ShowFrontPage {
-		fields = append(fields, cfgFPEntered, cfgFPRankUp, cfgFPRankDown, cfgFPLeft)
+		fields = append(fields, cfgFPEntered, cfgFPRankUp)
+		if m.config.FrontRankUp {
+			fields = append(fields, cfgFrontRankUpPeak)
+		}
+		fields = append(fields, cfgFPRankDown)
+		if m.config.FrontRankDown {
+			fields = append(fields, cfgFrontRankDownWorst)
+		}
+		fields = append(fields, cfgFPLeft)
 	}
 	fields = append(fields, cfgNSToggle, cfgPollSlider, cfgInitItems)
 	return fields
@@ -229,8 +239,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.config.FrontEntered = !m.config.FrontEntered
 				case cfgFPRankUp:
 					m.config.FrontRankUp = !m.config.FrontRankUp
+					if !m.config.FrontRankUp {
+						m.config.FrontRankUpPeak = false
+						newFields := m.configFields()
+						if m.configCur >= len(newFields) {
+							m.configCur = len(newFields) - 1
+						}
+					}
+				case cfgFrontRankUpPeak:
+					m.config.FrontRankUpPeak = !m.config.FrontRankUpPeak
 				case cfgFPRankDown:
 					m.config.FrontRankDown = !m.config.FrontRankDown
+					if !m.config.FrontRankDown {
+						m.config.FrontRankDownWorst = false
+						newFields := m.configFields()
+						if m.configCur >= len(newFields) {
+							m.configCur = len(newFields) - 1
+						}
+					}
+				case cfgFrontRankDownWorst:
+					m.config.FrontRankDownWorst = !m.config.FrontRankDownWorst
 				case cfgFPLeft:
 					m.config.FrontLeft = !m.config.FrontLeft
 				case cfgNSToggle:
@@ -266,6 +294,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
+			m.st.frontBestRanks[id] = rank
+			m.st.frontWorstRanks[id] = rank
 		}
 		for _, item := range msg.frontItems {
 			if item != nil {
@@ -365,23 +395,56 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				newRank := msg.newFrontRanks[id]
 				if oldRank, exists := m.st.frontRanks[id]; exists {
 					if newRank < oldRank && m.config.ShowFrontPage && m.config.FrontRankUp {
-						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w))
+						if m.config.FrontRankUpPeak {
+							bestRank, hasBest := m.st.frontBestRanks[id]
+							if !hasBest {
+								bestRank = oldRank
+							}
+							if newRank < bestRank {
+								oldBest := bestRank
+								m.st.frontBestRanks[id] = newRank
+								m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (best #%d)  ", newRank, oldBest), w))
+							}
+						} else {
+							m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w))
+						}
 					} else if newRank > oldRank && m.config.ShowFrontPage && m.config.FrontRankDown {
-						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w))
+						if m.config.FrontRankDownWorst {
+							worstRank, hasWorst := m.st.frontWorstRanks[id]
+							if !hasWorst {
+								worstRank = oldRank
+							}
+							if newRank > worstRank {
+								oldWorst := worstRank
+								m.st.frontWorstRanks[id] = newRank
+								m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (worst #%d)  ", newRank, oldWorst), w))
+							}
+						} else {
+							m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w))
+						}
 					}
 				} else if !m.st.seenIDs[id] {
 					if m.config.ShowFrontPage && m.config.FrontEntered {
 						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w))
 					}
 				}
+				// Track best and worst ranks for this item
+				if _, has := m.st.frontBestRanks[id]; !has || newRank < m.st.frontBestRanks[id] {
+					m.st.frontBestRanks[id] = newRank
+				}
+				if _, has := m.st.frontWorstRanks[id]; !has || newRank > m.st.frontWorstRanks[id] {
+					m.st.frontWorstRanks[id] = newRank
+				}
 				// Update cache for items still on the front page
 				m.st.frontCache[id] = item
 			}
 
-			// Clean up cache for items that left
+			// Clean up cache and best ranks for items that left
 			for id := range m.st.frontRanks {
 				if _, stillOn := msg.newFrontRanks[id]; !stillOn {
 					delete(m.st.frontCache, id)
+					delete(m.st.frontBestRanks, id)
+					delete(m.st.frontWorstRanks, id)
 				}
 			}
 

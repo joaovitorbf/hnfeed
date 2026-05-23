@@ -12,9 +12,11 @@ func main() {
 	cfg := loadSettings()
 	m := model{
 		st: feedState{
-			frontRanks: make(map[int]int),
-			frontCache: make(map[int]*Item),
-			seenIDs:    make(map[int]bool),
+			frontRanks:      make(map[int]int),
+			frontBestRanks:  make(map[int]int),
+			frontWorstRanks: make(map[int]int),
+			frontCache:      make(map[int]*Item),
+			seenIDs:         make(map[int]bool),
 		},
 		config:  cfg,
 		pollSec: cfg.PollSeconds,

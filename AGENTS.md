@@ -39,7 +39,9 @@ rank drops, and items that left the top 30).
 | New story | `[HH:mm:ss]` | Yellow |
 | Front-page entry | `★ #N` | Orange |
 | Front-page rank-up | `↑ #N (was #M)` | Orange |
+| Front-page rank-up (peak) | `↑ #N (best #M)` | Orange |
 | Front-page rank-down | `↓ #N (was #M)` | Orange |
+| Front-page rank-down (worst) | `↓ #N (worst #M)` | Orange |
 | Front-page leave | `✕ #N` | Gray |
 
 ## Feed state (`feedState` struct)
@@ -48,6 +50,8 @@ rank drops, and items that left the top 30).
 |---|---|
 | `buf` | Rendered ANSI lines (capped at 2000) |
 | `frontRanks` | Last known rank per front-page item |
+| `frontBestRanks` | Best (lowest-number) rank ever seen per item |
+| `frontWorstRanks` | Worst (highest-number) rank ever seen per item |
 | `frontCache` | Last known `*Item` data for front-page items (used for leave events) |
 | `seenIDs` | IDs already emitted as new-story entries |
 | `maxID` | Watermark for incremental new-story polling |
@@ -64,15 +68,19 @@ Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
 | `ShowFrontPage` | `true` | Master toggle for all front-page events |
 | `FrontEntered` | `true` | Show `★ #N` when an item enters the front page |
 | `FrontRankUp` | `true` | Show `↑ #N (was #M)` on rank improvement |
+| `FrontRankUpPeak` | `true` | Compare rank-up to all-time best rank (`↑ #N (best #M)`) |
 | `FrontRankDown` | `false` | Show `↓ #N (was #M)` on rank drop |
+| `FrontRankDownWorst` | `true` | Compare rank-down to all-time worst rank (`↓ #N (worst #M)`) |
 | `FrontLeft` | `false` | Show `✕ #N` when an item leaves the top 30 |
 | `ShowNewStories` | `true` | Show new-story entries |
 | `PollSeconds` | `30` | Seconds between refreshes |
 | `InitialItems` | `5` | Stories loaded from each source on startup |
 
-Sub-options (`FrontEntered`, `FrontRankUp`, `FrontRankDown`, `FrontLeft`) are
+Sub-options (`FrontEntered`, `FrontRankUp`, `FrontRankUpPeak`, `FrontRankDown`, `FrontRankDownWorst`, `FrontLeft`) are
 indented under **Front page events** in the settings UI and are only shown
-when `ShowFrontPage` is enabled.
+when `ShowFrontPage` is enabled. `FrontRankUpPeak` is only shown when
+`FrontRankUp` is enabled; `FrontRankDownWorst` is only shown when
+`FrontRankDown` is enabled.
 
 The header shows `(settings)` while the settings page is open. Filtering only
 affects newly arriving entries — existing ones in the buffer remain visible.
