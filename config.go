@@ -19,29 +19,6 @@ type feedConfig struct {
 	PollSeconds    int  `json:"poll_seconds"`
 }
 
-// ── Config field helpers ──────────────────────────────────────────────────────
-
-type cfgField int
-
-const (
-	cfgFPToggle cfgField = iota
-	cfgFPEntered
-	cfgFPRankUp
-	cfgFPRankDown
-	cfgFPLeft
-	cfgNSToggle
-	cfgPollSlider
-)
-
-func (m model) configFields() []cfgField {
-	fields := []cfgField{cfgFPToggle}
-	if m.config.ShowFrontPage {
-		fields = append(fields, cfgFPEntered, cfgFPRankUp, cfgFPRankDown, cfgFPLeft)
-	}
-	fields = append(fields, cfgNSToggle, cfgPollSlider)
-	return fields
-}
-
 func loadSettings() feedConfig {
 	cfg := feedConfig{
 		ShowFrontPage:  true,

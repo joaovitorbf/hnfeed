@@ -133,6 +133,29 @@ func (m model) pollNowCmd() tea.Cmd {
 	}
 }
 
+// ── Config field helpers ──────────────────────────────────────────────────────
+
+type cfgField int
+
+const (
+	cfgFPToggle cfgField = iota
+	cfgFPEntered
+	cfgFPRankUp
+	cfgFPRankDown
+	cfgFPLeft
+	cfgNSToggle
+	cfgPollSlider
+)
+
+func (m model) configFields() []cfgField {
+	fields := []cfgField{cfgFPToggle}
+	if m.config.ShowFrontPage {
+		fields = append(fields, cfgFPEntered, cfgFPRankUp, cfgFPRankDown, cfgFPLeft)
+	}
+	fields = append(fields, cfgNSToggle, cfgPollSlider)
+	return fields
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -243,7 +266,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if i >= m.initial {
 					break
 				}
-				appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w), &m.st.scroll, &m.st.totalItems)
+				m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w))
 			}
 		}
 		for _, item := range msg.newItems {
@@ -252,7 +275,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.st.seenIDs[item.ID] = true
 			if m.config.ShowNewStories {
-				appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+				m.st.appendEntry(formatNewItemLines(item, w))
 			}
 			if item.ID > m.st.maxID {
 				m.st.maxID = item.ID
@@ -299,7 +322,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.st.seenIDs[item.ID] {
 				m.st.seenIDs[item.ID] = true
 				if m.config.ShowNewStories {
-					appendEntry(&m.st.buf, formatNewItemLines(item, w), &m.st.scroll, &m.st.totalItems)
+					m.st.appendEntry(formatNewItemLines(item, w))
 				}
 			}
 		}
@@ -317,7 +340,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for id, oldRank := range m.st.frontRanks {
 					if _, stillOn := msg.newFrontRanks[id]; !stillOn {
 						if item, ok := m.st.frontCache[id]; ok {
-							appendEntry(&m.st.buf, formatFrontLeaveLine(item, oldRank, w), &m.st.scroll, &m.st.totalItems)
+							m.st.appendEntry(formatFrontLeaveLine(item, oldRank, w))
 						}
 					}
 				}
@@ -331,13 +354,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				newRank := msg.newFrontRanks[id]
 				if oldRank, exists := m.st.frontRanks[id]; exists {
 					if newRank < oldRank && m.config.ShowFrontPage && m.config.FrontRankUp {
-						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
+						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w))
 					} else if newRank > oldRank && m.config.ShowFrontPage && m.config.FrontRankDown {
-						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
+						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w))
 					}
 				} else if !m.st.seenIDs[id] {
 					if m.config.ShowFrontPage && m.config.FrontEntered {
-						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
+						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w))
 					}
 				}
 				// Update cache for items still on the front page
