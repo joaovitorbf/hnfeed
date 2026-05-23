@@ -174,6 +174,25 @@ func formatFrontEventLines(item *Item, prefix string, width int) []string {
 	}
 }
 
+// formatFrontLeaveLine returns the 4 feed lines for an item leaving the front page.
+func formatFrontLeaveLine(item *Item, oldRank int, width int) []string {
+	t := time.Now().Format("15:04:05")
+	metaPlain := fmt.Sprintf("[%d▲ %dc]", item.Score, item.Descendants)
+	const timeVisible = 11
+	prefix := fmt.Sprintf("✕ #%d  ", oldRank)
+	avail := width - timeVisible - len([]rune(prefix)) - len([]rune(metaPlain)) - 1
+	if avail < 1 {
+		avail = 1
+	}
+	title := padRight(truncRunes(item.Title, avail), avail)
+	return []string{
+		gry + "[" + t + "]" + rst + " " + gry + prefix + title + rst + " " + gry + metaPlain + rst,
+		"  " + gry + itemURL(item) + rst,
+		"  " + gry + "Comments: " + commentURL(item.ID) + rst,
+		"",
+	}
+}
+
 // appendEntry appends a 4-line entry to feedBuf, increments totalItems, and
 // advances scroll by 4 when the user is scrolled up, keeping the viewport stable.
 func appendEntry(feedBuf *[]string, lines []string, scroll *int, totalItems *int) {
@@ -188,11 +207,12 @@ func appendEntry(feedBuf *[]string, lines []string, scroll *int, totalItems *int
 
 type feedState struct {
 	buf        []string
-	frontRanks map[int]int  // id → last known rank (1-based)
-	seenIDs    map[int]bool // ids already emitted as new-story entries
-	maxID      int          // highest new-story ID seen; watermark for incremental polling
-	scroll     int          // lines scrolled up from the bottom (0 = live)
-	totalItems int          // total entries ever appended
+	frontRanks map[int]int   // id → last known rank (1-based)
+	frontCache map[int]*Item // last known item data for front-page items
+	seenIDs    map[int]bool  // ids already emitted as new-story entries
+	maxID      int           // highest new-story ID seen; watermark for incremental polling
+	scroll     int           // lines scrolled up from the bottom (0 = live)
+	totalItems int           // total entries ever appended
 }
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -202,13 +222,42 @@ const settingsFile = "hnfeed-settings.json"
 type feedConfig struct {
 	ShowFrontPage  bool `json:"show_front_page"`
 	ShowNewStories bool `json:"show_new_stories"`
+	FrontEntered   bool `json:"front_entered"`
+	FrontRankUp    bool `json:"front_rank_up"`
+	FrontRankDown  bool `json:"front_rank_down"`
+	FrontLeft      bool `json:"front_left"`
 	PollSeconds    int  `json:"poll_seconds"`
+}
+
+// ── Config field helpers ──────────────────────────────────────────────────────
+
+type cfgField int
+
+const (
+	cfgFPToggle cfgField = iota
+	cfgFPEntered
+	cfgFPRankUp
+	cfgFPRankDown
+	cfgFPLeft
+	cfgNSToggle
+	cfgPollSlider
+)
+
+func (m model) configFields() []cfgField {
+	fields := []cfgField{cfgFPToggle}
+	if m.config.ShowFrontPage {
+		fields = append(fields, cfgFPEntered, cfgFPRankUp, cfgFPRankDown, cfgFPLeft)
+	}
+	fields = append(fields, cfgNSToggle, cfgPollSlider)
+	return fields
 }
 
 func loadSettings() feedConfig {
 	cfg := feedConfig{
 		ShowFrontPage:  true,
 		ShowNewStories: true,
+		FrontEntered:   true,
+		FrontRankUp:    true,
 		PollSeconds:    30,
 	}
 	data, err := os.ReadFile(settingsFile)
@@ -377,17 +426,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.configOpen {
+			fields := m.configFields()
 			switch {
 			case msg.Type == tea.KeyUp:
 				if m.configCur > 0 {
 					m.configCur--
 				}
 			case msg.Type == tea.KeyDown:
-				if m.configCur < 2 {
+				if m.configCur < len(fields)-1 {
 					m.configCur++
 				}
 			case msg.Type == tea.KeyLeft, string(msg.Runes) == "-":
-				if m.configCur == 2 {
+				if fields[m.configCur] == cfgPollSlider {
 					m.config.PollSeconds -= 5
 					if m.config.PollSeconds < 5 {
 						m.config.PollSeconds = 5
@@ -396,7 +446,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					saveSettings(m.config)
 				}
 			case msg.Type == tea.KeyRight, string(msg.Runes) == "=", string(msg.Runes) == "+":
-				if m.configCur == 2 {
+				if fields[m.configCur] == cfgPollSlider {
 					m.config.PollSeconds += 5
 					if m.config.PollSeconds > 300 {
 						m.config.PollSeconds = 300
@@ -405,10 +455,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					saveSettings(m.config)
 				}
 			case msg.Type == tea.KeyEnter, string(msg.Runes) == " ":
-				switch m.configCur {
-				case 0:
+				switch fields[m.configCur] {
+				case cfgFPToggle:
 					m.config.ShowFrontPage = !m.config.ShowFrontPage
-				case 1:
+					if !m.config.ShowFrontPage {
+						newFields := m.configFields()
+						if m.configCur >= len(newFields) {
+							m.configCur = len(newFields) - 1
+						}
+					}
+				case cfgFPEntered:
+					m.config.FrontEntered = !m.config.FrontEntered
+				case cfgFPRankUp:
+					m.config.FrontRankUp = !m.config.FrontRankUp
+				case cfgFPRankDown:
+					m.config.FrontRankDown = !m.config.FrontRankDown
+				case cfgFPLeft:
+					m.config.FrontLeft = !m.config.FrontLeft
+				case cfgNSToggle:
 					m.config.ShowNewStories = !m.config.ShowNewStories
 				}
 				saveSettings(m.config)
@@ -442,7 +506,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
 		}
-		if m.config.ShowFrontPage {
+		for _, item := range msg.frontItems {
+			if item != nil {
+				m.st.frontCache[item.ID] = item
+			}
+		}
+		if m.config.ShowFrontPage && m.config.FrontEntered {
 			for i, item := range msg.frontItems {
 				if i >= m.initial {
 					break
@@ -516,6 +585,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Front page
 		if msg.newFrontRanks != nil {
+			// Detect items that left the front page
+			if m.config.ShowFrontPage && m.config.FrontLeft {
+				for id, oldRank := range m.st.frontRanks {
+					if _, stillOn := msg.newFrontRanks[id]; !stillOn {
+						if item, ok := m.st.frontCache[id]; ok {
+							appendEntry(&m.st.buf, formatFrontLeaveLine(item, oldRank, w), &m.st.scroll, &m.st.totalItems)
+						}
+					}
+				}
+			}
+
 			for _, item := range msg.frontItems {
 				if item == nil {
 					continue
@@ -523,15 +603,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id := item.ID
 				newRank := msg.newFrontRanks[id]
 				if oldRank, exists := m.st.frontRanks[id]; exists {
-					if newRank < oldRank && m.config.ShowFrontPage {
+					if newRank < oldRank && m.config.ShowFrontPage && m.config.FrontRankUp {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
+					} else if newRank > oldRank && m.config.ShowFrontPage && m.config.FrontRankDown {
+						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w), &m.st.scroll, &m.st.totalItems)
 					}
 				} else if !m.st.seenIDs[id] {
-					if m.config.ShowFrontPage {
+					if m.config.ShowFrontPage && m.config.FrontEntered {
 						appendEntry(&m.st.buf, formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w), &m.st.scroll, &m.st.totalItems)
 					}
 				}
+				// Update cache for items still on the front page
+				m.st.frontCache[id] = item
 			}
+
+			// Clean up cache for items that left
+			for id := range m.st.frontRanks {
+				if _, stillOn := msg.newFrontRanks[id]; !stillOn {
+					delete(m.st.frontCache, id)
+				}
+			}
+
 			m.st.frontRanks = msg.newFrontRanks
 		}
 
@@ -625,39 +717,61 @@ func (m model) View() string {
 }
 
 func (m model) buildConfigLines(w int) []string {
-	fpChecked := "[ ]"
-	if m.config.ShowFrontPage {
-		fpChecked = "[x]"
-	}
-	nsChecked := "[ ]"
-	if m.config.ShowNewStories {
-		nsChecked = "[x]"
+	fields := m.configFields()
+
+	var raw []string
+	raw = append(raw, bold+"  Configuration"+rst, "")
+
+	for i, f := range fields {
+		cursor := "  "
+		if i == m.configCur {
+			cursor = "▸ "
+		}
+		switch f {
+		case cfgFPToggle:
+			chk := "[ ]"
+			if m.config.ShowFrontPage {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("  %s%s  Front page events", cursor, chk))
+		case cfgFPEntered:
+			chk := "[ ]"
+			if m.config.FrontEntered {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("    %s%s  Entered front page", cursor, chk))
+		case cfgFPRankUp:
+			chk := "[ ]"
+			if m.config.FrontRankUp {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("    %s%s  Ranking up", cursor, chk))
+		case cfgFPRankDown:
+			chk := "[ ]"
+			if m.config.FrontRankDown {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("    %s%s  Ranking down", cursor, chk))
+		case cfgFPLeft:
+			chk := "[ ]"
+			if m.config.FrontLeft {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("    %s%s  Left front page", cursor, chk))
+		case cfgNSToggle:
+			chk := "[ ]"
+			if m.config.ShowNewStories {
+				chk = "[x]"
+			}
+			raw = append(raw, fmt.Sprintf("  %s%s  New story events", cursor, chk))
+		case cfgPollSlider:
+			raw = append(raw, fmt.Sprintf("  %sPoll interval: %ds", cursor, m.config.PollSeconds))
+		}
 	}
 
-	curFP := "  "
-	curNS := "  "
-	curPS := "  "
-	if m.configCur == 0 {
-		curFP = "▸ "
-	}
-	if m.configCur == 1 {
-		curNS = "▸ "
-	}
-	if m.configCur == 2 {
-		curPS = "▸ "
-	}
-
-	raw := []string{
-		bold + "  Configuration" + rst,
-		"",
-		"  " + curFP + fpChecked + "  Get front page events",
-		"  " + curNS + nsChecked + "  Get new story events",
-		"",
-		"  " + curPS + fmt.Sprintf("Poll interval: %ds", m.config.PollSeconds),
-		"",
-		gry + "  ↑↓ Navigate          Space toggle" + rst,
-		gry + "  ← → adjust value     ?/F1/Esc close" + rst,
-	}
+	raw = append(raw, "")
+	raw = append(raw, gry+"  ↑↓ Navigate          Space toggle"+rst)
+	raw = append(raw, gry+"  ← → adjust value     ?/F1/Esc close"+rst)
 
 	lines := make([]string, len(raw))
 	for i, line := range raw {
@@ -701,6 +815,7 @@ func main() {
 	m := model{
 		st: feedState{
 			frontRanks: make(map[int]int),
+			frontCache: make(map[int]*Item),
 			seenIDs:    make(map[int]bool),
 		},
 		config:   cfg,
