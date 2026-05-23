@@ -202,19 +202,24 @@ const settingsFile = "hnfeed-settings.json"
 type feedConfig struct {
 	ShowFrontPage  bool `json:"show_front_page"`
 	ShowNewStories bool `json:"show_new_stories"`
+	PollSeconds    int  `json:"poll_seconds"`
 }
 
 func loadSettings() feedConfig {
 	cfg := feedConfig{
 		ShowFrontPage:  true,
 		ShowNewStories: true,
+		PollSeconds:    30,
 	}
 	data, err := os.ReadFile(settingsFile)
 	if err != nil {
 		return cfg
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return feedConfig{ShowFrontPage: true, ShowNewStories: true}
+		return feedConfig{ShowFrontPage: true, ShowNewStories: true, PollSeconds: 30}
+	}
+	if cfg.PollSeconds < 5 {
+		cfg.PollSeconds = 30
 	}
 	return cfg
 }
@@ -378,8 +383,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.configCur--
 				}
 			case msg.Type == tea.KeyDown:
-				if m.configCur < 1 {
+				if m.configCur < 2 {
 					m.configCur++
+				}
+			case msg.Type == tea.KeyLeft, string(msg.Runes) == "-":
+				if m.configCur == 2 {
+					m.config.PollSeconds -= 5
+					if m.config.PollSeconds < 5 {
+						m.config.PollSeconds = 5
+					}
+					m.pollSec = m.config.PollSeconds
+					saveSettings(m.config)
+				}
+			case msg.Type == tea.KeyRight, string(msg.Runes) == "=", string(msg.Runes) == "+":
+				if m.configCur == 2 {
+					m.config.PollSeconds += 5
+					if m.config.PollSeconds > 300 {
+						m.config.PollSeconds = 300
+					}
+					m.pollSec = m.config.PollSeconds
+					saveSettings(m.config)
 				}
 			case msg.Type == tea.KeyEnter, string(msg.Runes) == " ":
 				switch m.configCur {
@@ -613,11 +636,15 @@ func (m model) buildConfigLines(w int) []string {
 
 	curFP := "  "
 	curNS := "  "
+	curPS := "  "
 	if m.configCur == 0 {
 		curFP = "▸ "
 	}
 	if m.configCur == 1 {
 		curNS = "▸ "
+	}
+	if m.configCur == 2 {
+		curPS = "▸ "
 	}
 
 	raw := []string{
@@ -626,8 +653,10 @@ func (m model) buildConfigLines(w int) []string {
 		"  " + curFP + fpChecked + "  Get front page events",
 		"  " + curNS + nsChecked + "  Get new story events",
 		"",
+		"  " + curPS + fmt.Sprintf("Poll interval: %ds", m.config.PollSeconds),
+		"",
 		gry + "  ↑↓ Navigate          Space toggle" + rst,
-		gry + "  ?/F1/Esc close" + rst,
+		gry + "  ← → adjust value     ?/F1/Esc close" + rst,
 	}
 
 	lines := make([]string, len(raw))
@@ -664,18 +693,18 @@ func (m model) statusText() string {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	pollSeconds := flag.Int("pollSeconds", 30, "seconds between refreshes")
 	initialItems := flag.Int("initialItems", 5, "stories loaded from each source on startup")
 	throttleLimit := flag.Int("throttleLimit", 10, "max parallel item fetches")
 	flag.Parse()
 
+	cfg := loadSettings()
 	m := model{
 		st: feedState{
 			frontRanks: make(map[int]int),
 			seenIDs:    make(map[int]bool),
 		},
-		config:   loadSettings(),
-		pollSec:  *pollSeconds,
+		config:   cfg,
+		pollSec:  cfg.PollSeconds,
 		throttle: *throttleLimit,
 		initial:  *initialItems,
 	}

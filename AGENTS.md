@@ -47,12 +47,13 @@ against `frontRanks` → front-page events (new entries and rank improvements).
 ## Settings
 
 Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
-`↑`/`↓`, toggle filters with `Space`/`Enter`, close with `Esc`.
+`↑`/`↓`, toggle filters with `Space`/`Enter`, adjust numeric values with `←`/`→`, close with `Esc`.
 
 | Field | Default | Purpose |
 |---|---|---|
 | `ShowFrontPage` | `true` | Show front-page events (entries and rank-ups) |
 | `ShowNewStories` | `true` | Show new-story entries |
+| `PollSeconds` | `30` | Seconds between refreshes |
 
 The header shows `(settings)` while the settings page is open. Filtering only
 affects newly arriving entries — existing ones in the buffer remain visible.
