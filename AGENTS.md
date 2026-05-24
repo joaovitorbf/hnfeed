@@ -11,13 +11,13 @@ HN "new" and front page into one chronological stream using
 | File | Responsibility |
 |---|---|
 | `hn.go` | `Item` struct and HN API fetchers |
-| `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.) and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
+| `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.), feed styles (`feedBorder`, `statusBarStyle`), and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
 | `config.go` | Configuration struct and JSON persistence |
-| `feed.go` | `feedState` struct |
-| `format.go` | Entry formatters and buffer helpers |
+| `feed.go` | Entry type constants (`entryType`), `feedEntry` struct, `feedState` struct, `appendEntry`, `totalLines` |
+| `format.go` | Entry formatters (`formatNewItemLines`, `formatFrontEventLines`, `formatFrontLeaveLine`) |
 | `main.go` | Entry point, program setup |
 | `model.go` | Bubbletea model, messages, commands, update loop |
-| `view.go` | Rendering: header, feed panel, settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), status bar |
+| `view.go` | Rendering: header, feed panel (bordered), settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), `formatEntry` dispatch, status bar |
 
 ## API
 
@@ -48,7 +48,7 @@ rank drops, and items that left the top 30).
 
 | Field | Purpose |
 |---|---|
-| `buf` | Rendered ANSI lines (capped at 2000) |
+| `entries` | Raw `[]feedEntry` structs (capped at 500 entries / ~2000 lines); formatted at render time |
 | `frontRanks` | Last known rank per front-page item |
 | `frontBestRanks` | Best (lowest-number) rank ever seen per item |
 | `frontWorstRanks` | Worst (highest-number) rank ever seen per item |
@@ -57,6 +57,12 @@ rank drops, and items that left the top 30).
 | `maxID` | Watermark for incremental new-story polling |
 | `scroll` | Lines scrolled up from bottom (0 = live) |
 | `totalItems` | Total entries ever appended |
+
+Helper methods:
+- `appendEntry(feedEntry)` — appends entry, increments `totalItems`, advances `scroll` by 4.
+- `totalLines()` — returns `len(entries) * 4` for scroll/viewport calculations.
+
+See also `feedEntry` struct and `entryType` constants in `feed.go`. New entries are created with a `feedEntry{typ: ..., item: ..., prefix: ...}` literal and passed to `appendEntry`. Formatting is deferred to the view (see below).
 
 ## Settings
 
@@ -120,6 +126,31 @@ when `ShowFrontPage` is enabled. `FrontRankUpPeak` is only shown when
 The header shows `(settings)` while the settings page is open. Filtering only
 affects newly arriving entries — existing ones in the buffer remain visible.
 
+## Visual design
+
+Both the main feed and the settings panel use rounded-border panels with a
+cyan (`lipgloss.Color("6")`) border, creating a consistent Charmbracelet-style
+look.
+
+- **Feed panel**: Wrapped in a `feedBorder` (rounded, cyan) that replaces the
+  old plain divider line. Content width inside the border is `innerW = w - 4`.
+- **Status bar**: Uses `statusBarStyle` (cyan background, white bold text)
+  instead of the old plain-blue bar.
+- **Header**: Bold cyan ` HN Feed ` with a gray scroll hint on the right.
+
+### Entry formatting — render-time
+
+Entries are stored as `feedEntry` structs (raw data), not pre-rendered ANSI
+lines. At each frame, `View()` calls `m.formatEntry(entry, innerW)` which
+dispatches to the appropriate formatter (`formatNewItemLines`,
+`formatFrontEventLines`, `formatFrontLeaveLine`) with the **current** inner
+panel width. This ensures:
+
+- Tags (`[NEW]`, `[42▲ 7c]`) are always right-aligned to the container edge.
+- Resizing the window instantly reflows all visible entries — no stale widths.
+- The `fit(line, innerW)` call in the rendering loop is a safety no-op
+  (lines are already the correct width).
+
 Settings are persisted to `hnfeed-settings.json` in the current directory.
 Saved automatically on every toggle and loaded on startup. If the file is
 missing or corrupt, defaults are used.
@@ -140,10 +171,11 @@ Requires Go 1.26+. `Ctrl+C` to exit, `?`/`F1` for settings.
 
 ## Guidelines
 
-- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state struct), `main.go` (entry point). No build tags.
+- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state/entry structs), `main.go` (entry point). No build tags.
 - Use `fit`/`truncPad` from `style.go` for ANSI-safe width accounting.
-- Every entry in `buf` must be exactly 4 lines.
-- Use `appendEntry()` for adding entries; decrement `scroll` when trimming.
+- Every entry produces exactly 4 lines. The `totalLines()` helper computes `len(entries) * 4`.
+- Use `m.st.appendEntry(feedEntry{...})` to add entries. Do **not** call formatters at event time — create a `feedEntry` and let the view format it at render time.
+- Trimming (capped at 500 entries / ~2000 lines) operates on `entries`, not lines: `trim * 4` when adjusting scroll.
 - Populate `frontRanks` for all 30 items at startup before first live poll.
 - Wrap network calls — never crash on transient API failure.
 - Commands must never mutate model directly; send messages to `Update`.

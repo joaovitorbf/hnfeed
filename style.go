@@ -27,6 +27,11 @@ var (
 	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	helpTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	arrowStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	feedBorder     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("6"))
+	statusBarStyle = lipgloss.NewStyle().
+		Background(lipgloss.Color("6")).
+		Foreground(lipgloss.Color("15")).
+		Bold(true)
 )
 
 // ── ANSI-safe text helpers ────────────────────────────────────────────────────

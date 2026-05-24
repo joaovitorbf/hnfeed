@@ -19,9 +19,10 @@ func (m model) View() string {
 		h = 24
 	}
 
-	ph := h - 3 // rows available for the feed panel
-	if ph < 1 {
-		ph = 1
+	// Content area: between title (1) and status bar (1)
+	contentH := h - 2
+	if contentH < 3 {
+		contentH = 3
 	}
 
 	var buf strings.Builder
@@ -36,22 +37,30 @@ func (m model) View() string {
 	buf.WriteString(fit(titleStyle.Render(" HN Feed ")+scrollHint, w))
 	buf.WriteByte('\n')
 
-	buf.WriteString(grayStyle.Render(strings.Repeat("─", w)))
-	buf.WriteByte('\n')
-
 	if m.configOpen {
+		// ── Settings panel (has its own border) ──
 		cfgLines := m.buildConfigLines(w)
-		cfgTop := 0
-		for row := 0; row < ph; row++ {
+		for row := 0; row < contentH; row++ {
 			var line string
-			if row >= cfgTop && row < cfgTop+len(cfgLines) {
-				line = cfgLines[row-cfgTop]
+			if row < len(cfgLines) {
+				line = cfgLines[row]
 			}
 			buf.WriteString(fit(line, w))
 			buf.WriteByte('\n')
 		}
 	} else {
-		maxScroll := len(m.st.buf) - ph
+		// ── Feed panel with rounded border ──
+		innerW := w - 4
+		if innerW < 1 {
+			innerW = 1
+		}
+		innerH := contentH - 2
+		if innerH < 1 {
+			innerH = 1
+		}
+
+		totalLines := m.st.totalLines()
+		maxScroll := totalLines - innerH
 		if maxScroll < 0 {
 			maxScroll = 0
 		}
@@ -59,31 +68,66 @@ func (m model) View() string {
 		if sc > maxScroll {
 			sc = maxScroll
 		}
-		startIdx := len(m.st.buf) - ph - sc
+		startIdx := totalLines - innerH - sc
 		if startIdx < 0 {
 			startIdx = 0
 		}
-		for row := 0; row < ph; row++ {
+
+		var inner []string
+		hasContent := false
+		for row := 0; row < innerH; row++ {
 			li := startIdx + row
 			line := ""
-			if li < len(m.st.buf) {
-				line = m.st.buf[li]
+			entryIdx := li / 4
+			lineIdx := li % 4
+			if entryIdx < len(m.st.entries) {
+				entry := m.st.entries[entryIdx]
+				lines := m.formatEntry(entry, innerW)
+				line = lines[lineIdx]
+				hasContent = true
 			}
+			inner = append(inner, fit(line, innerW))
+		}
+
+		// Show a subtle placeholder while the initial data loads
+		if !hasContent && !m.ready {
+			mid := innerH / 2
+			inner[mid] = fit(dimStyle.Render("  Fetching data…  "), innerW)
+		}
+
+		content := strings.Join(inner, "\n")
+		panel := feedBorder.Render(content)
+		panelLines := strings.Split(panel, "\n")
+		for _, line := range panelLines {
 			buf.WriteString(fit(line, w))
 			buf.WriteByte('\n')
 		}
 	}
 
+	// ── Status bar ──
 	status := m.statusText()
 	buf.WriteString(
-		lipgloss.NewStyle().
-			Background(lipgloss.Color("4")).
-			Foreground(lipgloss.Color("15")).
-			Width(w).
-			Render("  " + status + "  "),
+		statusBarStyle.Width(w).Render("  " + status),
 	)
 
 	return buf.String()
+}
+
+// formatEntry renders a feedEntry into 4 ANSI-styled lines at the given width.
+func (m model) formatEntry(e feedEntry, width int) []string {
+	switch e.typ {
+	case entryNew:
+		return formatNewItemLines(e.item, width)
+	case entryFrontEnter:
+		return formatFrontEventLines(e.item, e.prefix, width)
+	case entryFrontUp:
+		return formatFrontEventLines(e.item, e.prefix, width)
+	case entryFrontDown:
+		return formatFrontEventLines(e.item, e.prefix, width)
+	case entryFrontLeave:
+		return formatFrontLeaveLine(e.item, e.oldRank, width)
+	}
+	return []string{"", "", "", ""}
 }
 
 func (m model) buildConfigLines(w int) []string {

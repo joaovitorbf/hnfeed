@@ -83,12 +83,4 @@ func formatFrontLeaveLine(item *Item, oldRank int, width int) []string {
 	}
 }
 
-// appendEntry appends a 4-line entry to feedBuf, increments totalItems, and
-// advances scroll by 4 when the user is scrolled up, keeping the viewport stable.
-func (s *feedState) appendEntry(lines []string) {
-	s.buf = append(s.buf, lines...)
-	s.totalItems++
-	if s.scroll > 0 {
-		s.scroll += 4
-	}
-}
+

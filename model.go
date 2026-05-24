@@ -287,11 +287,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case seedResultMsg:
-		w := m.width
-		if w < 10 {
-			w = 80
-		}
-
 		for id, rank := range msg.frontRanks {
 			m.st.frontRanks[id] = rank
 			m.st.frontBestRanks[id] = rank
@@ -307,7 +302,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if i >= m.config.InitialItems {
 					break
 				}
-				m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]), w))
+				m.st.appendEntry(feedEntry{
+					typ:    entryFrontEnter,
+					item:   item,
+					prefix: fmt.Sprintf("★ #%d  ", msg.frontRanks[item.ID]),
+				})
 			}
 		}
 		for _, item := range msg.newItems {
@@ -316,7 +315,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.st.seenIDs[item.ID] = true
 			if m.config.ShowNewStories {
-				m.st.appendEntry(formatNewItemLines(item, w))
+				m.st.appendEntry(feedEntry{typ: entryNew, item: item})
 			}
 			if item.ID > m.st.maxID {
 				m.st.maxID = item.ID
@@ -346,11 +345,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case pollResultMsg:
-		w := m.width
-		if w < 10 {
-			w = 80
-		}
-
 		// New stories
 		oldMaxID := m.st.maxID
 		if msg.newMaxID > m.st.maxID {
@@ -363,7 +357,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.st.seenIDs[item.ID] {
 				m.st.seenIDs[item.ID] = true
 				if m.config.ShowNewStories {
-					m.st.appendEntry(formatNewItemLines(item, w))
+					m.st.appendEntry(feedEntry{typ: entryNew, item: item})
 				}
 			}
 		}
@@ -381,7 +375,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for id, oldRank := range m.st.frontRanks {
 					if _, stillOn := msg.newFrontRanks[id]; !stillOn {
 						if item, ok := m.st.frontCache[id]; ok {
-							m.st.appendEntry(formatFrontLeaveLine(item, oldRank, w))
+							m.st.appendEntry(feedEntry{
+								typ:     entryFrontLeave,
+								item:    item,
+								oldRank: oldRank,
+							})
 						}
 					}
 				}
@@ -403,10 +401,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if newRank < bestRank {
 								oldBest := bestRank
 								m.st.frontBestRanks[id] = newRank
-								m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (best #%d)  ", newRank, oldBest), w))
+								m.st.appendEntry(feedEntry{
+									typ:    entryFrontUp,
+									item:   item,
+									prefix: fmt.Sprintf("↑ #%d (best #%d)  ", newRank, oldBest),
+								})
 							}
 						} else {
-							m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank), w))
+							m.st.appendEntry(feedEntry{
+								typ:    entryFrontUp,
+								item:   item,
+								prefix: fmt.Sprintf("↑ #%d (was #%d)  ", newRank, oldRank),
+							})
 						}
 					} else if newRank > oldRank && m.config.ShowFrontPage && m.config.FrontRankDown {
 						if m.config.FrontRankDownWorst {
@@ -417,15 +423,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if newRank > worstRank {
 								oldWorst := worstRank
 								m.st.frontWorstRanks[id] = newRank
-								m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (worst #%d)  ", newRank, oldWorst), w))
+								m.st.appendEntry(feedEntry{
+									typ:    entryFrontDown,
+									item:   item,
+									prefix: fmt.Sprintf("↓ #%d (worst #%d)  ", newRank, oldWorst),
+								})
 							}
 						} else {
-							m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank), w))
+							m.st.appendEntry(feedEntry{
+								typ:    entryFrontDown,
+								item:   item,
+								prefix: fmt.Sprintf("↓ #%d (was #%d)  ", newRank, oldRank),
+							})
 						}
 					}
 				} else if !m.st.seenIDs[id] {
 					if m.config.ShowFrontPage && m.config.FrontEntered {
-						m.st.appendEntry(formatFrontEventLines(item, fmt.Sprintf("★ #%d  ", newRank), w))
+						m.st.appendEntry(feedEntry{
+							typ:    entryFrontEnter,
+							item:   item,
+							prefix: fmt.Sprintf("★ #%d  ", newRank),
+						})
 					}
 				}
 				// Track best and worst ranks for this item
@@ -451,11 +469,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.st.frontRanks = msg.newFrontRanks
 		}
 
-		if len(m.st.buf) > 2000 {
-			trim := len(m.st.buf) - 2000
-			m.st.buf = m.st.buf[trim:]
+		maxEntries := 500 // ~2000 lines ÷ 4
+		if len(m.st.entries) > maxEntries {
+			trim := len(m.st.entries) - maxEntries
+			m.st.entries = m.st.entries[trim:]
 			if m.st.scroll > 0 {
-				m.st.scroll -= trim
+				m.st.scroll -= trim * 4
 				if m.st.scroll < 0 {
 					m.st.scroll = 0
 				}
