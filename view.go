@@ -466,7 +466,7 @@ func (m model) statusText() string {
 		if !m.threads.loaded {
 			return fmt.Sprintf("Set a user in settings, then press F2/Ctrl+T  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit")
 		}
-		return fmt.Sprintf("Threads for %s  │  ↑↓ select  │  ← fold  │  → expand  │  Space toggle  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
+		return fmt.Sprintf("Threads for %s  │  ↑↓ select  │  ← fold  │  → expand  │  Space toggle  │  R refresh  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
 	}
 
 	if !m.ready {

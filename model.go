@@ -250,6 +250,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// ── When on threads page (outside config) ──
 		if !m.configOpen && m.page == pageThreads {
+			// R to refresh threads (works regardless of loaded state)
+			if len(msg.Runes) > 0 && (msg.Runes[0] == 'r' || msg.Runes[0] == 'R') {
+				if m.config.ThreadsUser != "" {
+					m.threads.reset()
+					m.threads.loading = true
+					return m, fetchThreadsCmd(m.config.ThreadsUser)
+				}
+				return m, nil
+			}
+
 			if m.threads.loaded && len(m.threads.flatLines) > 0 {
 				// Find current line in flatLines
 				curLine := findNodeLine(m.threads.flatLines, m.threads.cursor)
