@@ -500,48 +500,33 @@ func nextVisibleNode(flatLines []threadLineInfo, flatIdx int) int {
 	return -1
 }
 
+// findNode finds a threadNode by nodeIdx in the forest.
+func findNode(nodes []*threadNode, nodeIdx int) *threadNode {
+	for _, n := range nodes {
+		if n.nodeIdx == nodeIdx {
+			return n
+		}
+		if found := findNode(n.children, nodeIdx); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 // toggleCollapse toggles the collapsed state of the node with the given nodeIdx.
 // Returns the new flatLines and the new flatLines index for the same node.
 func (ts *threadsState) toggleCollapse(nodeIdx int, width int) {
-	var find func(nodes []*threadNode) *threadNode
-	find = func(nodes []*threadNode) *threadNode {
-		for _, n := range nodes {
-			if n.nodeIdx == nodeIdx {
-				return n
-			}
-			if found := find(n.children); found != nil {
-				return found
-			}
-		}
-		return nil
-	}
-	n := find(ts.forest)
+	n := findNode(ts.forest, nodeIdx)
 	if n == nil || !n.hasKids {
 		return
 	}
 	n.collapsed = !n.collapsed
 	ts.flatLines = flattenForest(ts.forest, width)
-	// Clamp cursor to valid node
-	if newIdx := findNodeLine(ts.flatLines, nodeIdx); newIdx >= 0 {
-		// cursor stays on the same node
-	}
 }
 
 // setCollapse sets the collapsed state of the node with the given nodeIdx.
 func (ts *threadsState) setCollapse(nodeIdx int, collapsed bool, width int) {
-	var find func(nodes []*threadNode) *threadNode
-	find = func(nodes []*threadNode) *threadNode {
-		for _, n := range nodes {
-			if n.nodeIdx == nodeIdx {
-				return n
-			}
-			if found := find(n.children); found != nil {
-				return found
-			}
-		}
-		return nil
-	}
-	n := find(ts.forest)
+	n := findNode(ts.forest, nodeIdx)
 	if n == nil || !n.hasKids || n.collapsed == collapsed {
 		return
 	}
@@ -554,7 +539,6 @@ func (ts *threadsState) setCollapse(nodeIdx int, collapsed bool, width int) {
 var (
 	threadConnStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	threadUserStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
-	threadBodyStyle      = lipgloss.NewStyle() // default foreground
 	threadParentStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	threadIndicatorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
