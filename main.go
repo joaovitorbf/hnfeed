@@ -18,8 +18,9 @@ func main() {
 			frontCache:      make(map[int]*Item),
 			seenIDs:         make(map[int]bool),
 		},
-		config:  cfg,
-		pollSec: cfg.PollSeconds,
+		config:          cfg,
+		pollSec:         cfg.PollSeconds,
+		lastThreadsUser: cfg.ThreadsUser,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())

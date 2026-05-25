@@ -112,7 +112,7 @@ Navigation:
 | Key | Action |
 |---|---|
 | `F1` / `Ctrl+F` | Switch to Feed page (closes settings if open) |
-| `F2` / `Ctrl+T` | Switch to Threads page (closes settings if open, triggers fetch if not loaded) |
+| `F2` / `Ctrl+T` | Switch to Threads page (closes settings if open; triggers fetch if not loaded or if `ThreadsUser` changed) |
 | `F10` / `?` | Toggle settings overlay |
 | `←` | Fold comment on Threads page |
 | `→` | Expand comment on Threads page |
@@ -183,6 +183,13 @@ when `ShowFrontPage` is enabled. `FrontRankUpPeak` is only shown when
 The header shows `(settings)` while the settings page is open. Filtering only
 affects newly arriving entries — existing ones in the buffer remain visible.
 
+**Auto-refresh on user change:** When `ThreadsUser` is modified in settings and
+the user leaves the settings overlay (via `Esc`, `F1`/`Ctrl+F`, or `F2`/`Ctrl+T`),
+threads data is immediately refreshed for the new user, even if threads were
+previously loaded for a different user. The model tracks the last-fetched user
+in `lastThreadsUser` (initialised from config on startup) and compares against
+the current setting to decide whether a re-fetch is needed.
+
 ## Visual design
 
 All panels use rounded-border panels with a cyan (`lipgloss.Color("6")`) border,
@@ -215,7 +222,9 @@ missing or corrupt, defaults are used.
 
 `Init()` launches async `seedFeedCmd`. On `seedResultMsg`: populate
 `frontRanks` silently, emit `InitialItems` front-page entries + newest stories,
-set `ready = true` to begin live polls. Threads page is loaded lazily when the user navigates to it.
+set `ready = true` to begin live polls. Threads page is loaded lazily when the
+user navigates to it, and eagerly re-fetched whenever `ThreadsUser` is changed
+in settings and the user closes the overlay.
 
 ## Running
 

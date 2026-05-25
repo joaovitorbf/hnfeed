@@ -47,10 +47,11 @@ type model struct {
 	pollSec    int
 	lastPoll   time.Time
 	ready      bool
-	config     feedConfig
-	configOpen bool
-	configCur  int
-	page       page
+	config          feedConfig
+	configOpen      bool
+	configCur       int
+	lastThreadsUser string
+	page            page
 }
 
 func (m model) Init() tea.Cmd {
@@ -203,6 +204,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyF1 || msg.Type == tea.KeyCtrlF {
 			m.page = pageFeed
 			m.configOpen = false
+			if m.config.ThreadsUser != m.lastThreadsUser {
+				m.lastThreadsUser = m.config.ThreadsUser
+				if m.config.ThreadsUser != "" {
+					m.threads.reset()
+					m.threads.loading = true
+					return m, fetchThreadsCmd(m.config.ThreadsUser)
+				}
+				m.threads.reset()
+			}
 			return m, nil
 		}
 
@@ -210,7 +220,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.page = pageThreads
 			m.configOpen = false
 			cmds := []tea.Cmd{}
-			if m.config.ThreadsUser != "" && !m.threads.loaded {
+			if m.config.ThreadsUser != "" && (!m.threads.loaded || m.config.ThreadsUser != m.lastThreadsUser) {
+				m.lastThreadsUser = m.config.ThreadsUser
 				m.threads.reset()
 				m.threads.loading = true
 				cmds = append(cmds, fetchThreadsCmd(m.config.ThreadsUser))
@@ -376,6 +387,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				case msg.Type == tea.KeyEsc:
 					m.configOpen = false
+					if m.config.ThreadsUser != m.lastThreadsUser {
+						m.lastThreadsUser = m.config.ThreadsUser
+						if m.config.ThreadsUser != "" {
+							m.threads.reset()
+							m.threads.loading = true
+							return m, fetchThreadsCmd(m.config.ThreadsUser)
+						}
+						m.threads.reset()
+					}
 				case len(msg.Runes) > 0:
 					m.config.ThreadsUser += string(msg.Runes)
 					saveSettings(m.config)
@@ -457,6 +477,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				saveSettings(m.config)
 			case msg.Type == tea.KeyEsc:
 				m.configOpen = false
+				if m.config.ThreadsUser != m.lastThreadsUser {
+					m.lastThreadsUser = m.config.ThreadsUser
+					if m.config.ThreadsUser != "" {
+						m.threads.reset()
+						m.threads.loading = true
+						return m, fetchThreadsCmd(m.config.ThreadsUser)
+					}
+					m.threads.reset()
+				}
 			}
 			return m, nil
 		}
