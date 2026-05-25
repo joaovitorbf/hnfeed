@@ -114,7 +114,10 @@ Navigation:
 | `F1` / `Ctrl+F` | Switch to Feed page (closes settings if open) |
 | `F2` / `Ctrl+T` | Switch to Threads page (closes settings if open, triggers fetch if not loaded) |
 | `F10` / `?` | Toggle settings overlay |
-| `←` `→` | Switch between Feed and Threads pages |
+| `←` | Fold comment on Threads page |
+| `→` | Expand comment on Threads page |
+| `↑` `↓` | Navigate between entries on Threads page |
+| `Space` / `Enter` | Toggle collapse on Threads page |
 
 ## Settings
 
@@ -221,7 +224,8 @@ go build -o hnfeed .
 ```
 
 Requires Go 1.26+. `Ctrl+C` to exit, `F1`/`Ctrl+F` for feed, `F2`/`Ctrl+T` for threads,
-`F10`/`?` for settings.
+`F10`/`?` for settings. On the Threads page: `↑`/`↓` to select, `←` to fold,
+`→` to expand, `Space`/`Enter` to toggle collapse.
 
 ## Guidelines
 

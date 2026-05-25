@@ -225,29 +225,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// ── Page switching (outside config) ──
-		if !m.configOpen {
-			switch {
-			case msg.Type == tea.KeyLeft:
-				if m.page == pageThreads {
-					m.page = pageFeed
-				}
-				return m, nil
-			case msg.Type == tea.KeyRight:
-				if m.page == pageFeed {
-					m.page = pageThreads
-					cmds := []tea.Cmd{}
-					if m.config.ThreadsUser != "" && !m.threads.loaded {
-						m.threads.reset()
-						m.threads.loading = true
-						cmds = append(cmds, fetchThreadsCmd(m.config.ThreadsUser))
-					}
-					return m, tea.Batch(cmds...)
-				}
-				return m, nil
-			}
-		}
-
 		// ── When on threads page (outside config) ──
 		if !m.configOpen && m.page == pageThreads {
 			if m.threads.loaded && len(m.threads.flatLines) > 0 {
@@ -284,6 +261,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				switch {
+				case msg.Type == tea.KeyLeft:
+					threadW := m.width - 4
+					if threadW < 10 {
+						threadW = 80
+					}
+					m.threads.setCollapse(m.threads.cursor, true, threadW)
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					if m.threads.scroll > maxS {
+						m.threads.scroll = maxS
+					}
+				case msg.Type == tea.KeyRight:
+					threadW := m.width - 4
+					if threadW < 10 {
+						threadW = 80
+					}
+					m.threads.setCollapse(m.threads.cursor, false, threadW)
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					if m.threads.scroll > maxS {
+						m.threads.scroll = maxS
+					}
 				case msg.Type == tea.KeyUp:
 					newIdx := prevVisibleNode(m.threads.flatLines, curLine)
 					if newIdx >= 0 {

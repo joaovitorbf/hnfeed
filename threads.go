@@ -527,6 +527,28 @@ func (ts *threadsState) toggleCollapse(nodeIdx int, width int) {
 	}
 }
 
+// setCollapse sets the collapsed state of the node with the given nodeIdx.
+func (ts *threadsState) setCollapse(nodeIdx int, collapsed bool, width int) {
+	var find func(nodes []*threadNode) *threadNode
+	find = func(nodes []*threadNode) *threadNode {
+		for _, n := range nodes {
+			if n.nodeIdx == nodeIdx {
+				return n
+			}
+			if found := find(n.children); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	n := find(ts.forest)
+	if n == nil || !n.hasKids || n.collapsed == collapsed {
+		return
+	}
+	n.collapsed = collapsed
+	ts.flatLines = flattenForest(ts.forest, width)
+}
+
 // ── Keys ─────────────────────────────────────────────────────────────────────
 
 var (
