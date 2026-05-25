@@ -5,6 +5,7 @@ import (
 	"html"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -104,21 +105,33 @@ func fetchThreads(username string) threadsResultMsg {
 		}
 	}
 
-	// Fetch parents
+	// Fetch parents and kids concurrently (both depend only on userComments)
 	var parentIDList []int
 	for id := range parentIDs {
 		parentIDList = append(parentIDList, id)
 	}
-	parents := fetchItemsParallelAny(parentIDList, throttle)
+	var (
+		parents []*Item
+		kids    []*Item
+	)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		parents = fetchItemsParallelAny(parentIDList, throttle)
+	}()
+	go func() {
+		defer wg.Done()
+		kids = fetchItemsParallelAny(allKidIDs, throttle)
+	}()
+	wg.Wait()
+
 	parentMap := make(map[int]*Item, len(parents))
 	for _, p := range parents {
 		if p != nil {
 			parentMap[p.ID] = p
 		}
 	}
-
-	// Fetch kids (replies to user comments)
-	kids := fetchItemsParallelAny(allKidIDs, throttle)
 
 	// Fetch grandkids (kids of replies)
 	var gkidIDs []int
