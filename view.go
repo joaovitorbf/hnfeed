@@ -28,13 +28,20 @@ func (m model) View() string {
 	var buf strings.Builder
 
 	scrollHint := grayStyle.Render("(live)")
-	if m.st.scroll > 0 {
+	if !m.configOpen && m.page == pageThreads {
+		scrollHint = grayStyle.Render("(threads)")
+	} else if m.st.scroll > 0 && !m.configOpen {
 		scrollHint = grayStyle.Render("[↑ scrolled]")
 	}
 	if m.configOpen {
 		scrollHint = grayStyle.Render("(settings)")
 	}
-	buf.WriteString(fit(titleStyle.Render(" HN Feed ")+scrollHint, w))
+
+	titleLeft := " HN Feed "
+	if !m.configOpen && m.page == pageThreads {
+		titleLeft = " HN Threads "
+	}
+	buf.WriteString(fit(titleStyle.Render(titleLeft)+scrollHint, w))
 	buf.WriteByte('\n')
 
 	if m.configOpen {
@@ -45,6 +52,100 @@ func (m model) View() string {
 			if row < len(cfgLines) {
 				line = cfgLines[row]
 			}
+			buf.WriteString(fit(line, w))
+			buf.WriteByte('\n')
+		}
+	} else if m.page == pageThreads {
+		// ── Threads panel ──
+		innerW := w - 4
+		if innerW < 1 {
+			innerW = 1
+		}
+		innerH := contentH - 2
+		if innerH < 1 {
+			innerH = 1
+		}
+
+		var inner []string
+		if m.threads.loading {
+			mid := innerH / 2
+			for row := 0; row < innerH; row++ {
+				l := ""
+				if row == mid {
+					l = fit(dimStyle.Render("  Loading threads…  "), innerW)
+				}
+				inner = append(inner, l)
+			}
+		} else if m.threads.err != "" {
+			mid := innerH / 2
+			for row := 0; row < innerH; row++ {
+				l := ""
+				if row == mid {
+					l = fit(dimStyle.Render("  Error: "+m.threads.err+"  "), innerW)
+				}
+				inner = append(inner, l)
+			}
+		} else if !m.threads.loaded || m.threads.forest == nil || len(m.threads.flatLines) == 0 {
+			if m.config.ThreadsUser == "" {
+				mid := innerH / 2
+				for row := 0; row < innerH; row++ {
+					l := ""
+					if row == mid {
+						l = fit(dimStyle.Render("  No user configured — set in settings (?/F1)  "), innerW)
+					} else if row == mid+1 {
+						l = fit(dimStyle.Render("  Press F2 or Ctrl+T to try again  "), innerW)
+					}
+					inner = append(inner, l)
+				}
+			} else {
+				mid := innerH / 2
+				for row := 0; row < innerH; row++ {
+					l := ""
+					if row == mid {
+						l = fit(dimStyle.Render("  No threads found for "+m.config.ThreadsUser+"  "), innerW)
+					}
+					inner = append(inner, l)
+				}
+			}
+		} else {
+			// Render visible lines
+			totalLines := len(m.threads.flatLines)
+			maxScroll := totalLines - innerH
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			sc := m.threads.scroll
+			if sc > maxScroll {
+				m.threads.scroll = maxScroll
+				sc = maxScroll
+			}
+			if sc < 0 {
+				m.threads.scroll = 0
+				sc = 0
+			}
+
+			for row := 0; row < innerH; row++ {
+				li := sc + row
+				line := ""
+				if li < len(m.threads.flatLines) {
+					info := m.threads.flatLines[li]
+					line = info.text
+					// Apply cursor highlight if this line belongs to the focused node
+					if info.nodeIdx >= 0 && info.nodeIdx == m.threads.cursor {
+						// Replace full ANSI resets with foreground-only resets so the
+						// cursor background survives internal lipgloss styling.
+						fixed := strings.ReplaceAll(info.text, "\033[0m", resetFgBold)
+						line = "\033[48;5;237m" + fixed + "\033[49m"
+					}
+				}
+				inner = append(inner, fit(line, innerW))
+			}
+		}
+
+		content := strings.Join(inner, "\n")
+		panel := feedBorder.Render(content)
+		panelLines := strings.Split(panel, "\n")
+		for _, line := range panelLines {
 			buf.WriteString(fit(line, w))
 			buf.WriteByte('\n')
 		}
@@ -137,12 +238,15 @@ func (m model) buildConfigLines(w int) []string {
 		innerW = 30
 	}
 
-	// Separate event toggles from numeric fields
-	var eventFields, numericFields []cfgField
+	// Separate event toggles from numeric/text fields
+	var eventFields, numericFields, textFields []cfgField
 	for _, f := range fields {
-		if f == cfgPollSlider || f == cfgInitItems {
+		switch f {
+		case cfgPollSlider, cfgInitItems:
 			numericFields = append(numericFields, f)
-		} else {
+		case cfgThreadsUser:
+			textFields = append(textFields, f)
+		default:
 			eventFields = append(eventFields, f)
 		}
 	}
@@ -175,6 +279,12 @@ func (m model) buildConfigLines(w int) []string {
 	inner = append(inner, "")
 
 	for _, f := range numericFields {
+		idx := fieldIdx(f)
+		line := m.configFieldLine(f, idx, m.configCur == idx, innerW)
+		inner = append(inner, line)
+	}
+
+	for _, f := range textFields {
 		idx := fieldIdx(f)
 		line := m.configFieldLine(f, idx, m.configCur == idx, innerW)
 		inner = append(inner, line)
@@ -264,6 +374,8 @@ func (m model) configFieldLine(f cfgField, idx int, isCursor bool, width int) st
 		left = "  " + prefix + "Poll interval"
 	case cfgInitItems:
 		left = "  " + prefix + "Initial items"
+	case cfgThreadsUser:
+		left = "  " + prefix + "Threads user"
 	}
 
 	var full string
@@ -302,6 +414,19 @@ func (m model) configFieldLine(f cfgField, idx int, isCursor bool, width int) st
 			pad = 0
 		}
 		full = body + strings.Repeat(" ", pad)
+	} else if f == cfgThreadsUser {
+		user := m.config.ThreadsUser
+		if user == "" {
+			user = dimStyle.Render("(not set)")
+		} else {
+			user = valStyle.Render(user)
+		}
+		body := left + "    [" + user + "]"
+		pad := width - lipgloss.Width(body)
+		if pad < 0 {
+			pad = 0
+		}
+		full = body + strings.Repeat(" ", pad)
 	} else {
 		pad := width - lipgloss.Width(left)
 		if pad < 0 {
@@ -328,6 +453,22 @@ func checkboxStr(on bool) string {
 }
 
 func (m model) statusText() string {
+	if m.configOpen {
+		return "F1 feed  │  F2 threads  │  Ctrl+C to quit"
+	}
+	if m.page == pageThreads {
+		if m.config.ThreadsUser == "" {
+			return "No user configured — set in settings (F10/?)  │  F1 feed  │  Ctrl+C to quit"
+		}
+		if m.threads.loading {
+			return fmt.Sprintf("Loading threads for %s…  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
+		}
+		if !m.threads.loaded {
+			return fmt.Sprintf("Set a user in settings, then press F2  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit")
+		}
+		return fmt.Sprintf("Threads for %s  │  ↑↓ Space navigate  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
+	}
+
 	if !m.ready {
 		return "Fetching data…  │  Ctrl+C to quit"
 	}
@@ -342,5 +483,5 @@ func (m model) statusText() string {
 	} else {
 		tStr = fmt.Sprintf("%ds", remaining)
 	}
-	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  ?/F1 settings  │  Ctrl+C to quit", tStr, m.st.totalItems)
+	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  F2 threads  │  F10/? settings  │  Ctrl+C to quit", tStr, m.st.totalItems)
 }

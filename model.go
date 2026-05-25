@@ -28,10 +28,20 @@ type pollResultMsg struct {
 	newMaxID      int
 }
 
+// ── Pages ────────────────────────────────────────────────────────────────────
+
+type page int
+
+const (
+	pageFeed    page = iota
+	pageThreads
+)
+
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type model struct {
 	st         feedState
+	threads    threadsState
 	width      int
 	height     int
 	pollSec    int
@@ -40,6 +50,7 @@ type model struct {
 	config     feedConfig
 	configOpen bool
 	configCur  int
+	page       page
 }
 
 func (m model) Init() tea.Cmd {
@@ -146,6 +157,7 @@ const (
 	cfgNSToggle
 	cfgPollSlider
 	cfgInitItems
+	cfgThreadsUser
 )
 
 func (m model) configFields() []cfgField {
@@ -161,7 +173,7 @@ func (m model) configFields() []cfgField {
 		}
 		fields = append(fields, cfgFPLeft)
 	}
-	fields = append(fields, cfgNSToggle, cfgPollSlider, cfgInitItems)
+	fields = append(fields, cfgNSToggle, cfgPollSlider, cfgInitItems, cfgThreadsUser)
 	return fields
 }
 
@@ -172,29 +184,204 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.threads.loaded && m.threads.forest != nil {
+			w := m.width - 4
+			if w < 10 {
+				w = 80
+			}
+			m.threads.flatLines = flattenForest(m.threads.forest, w)
+			m.threads.lastWidth = w
+		}
 		return m, nil
 
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
 		}
-		// Toggle config overlay with F1 or ?
-		if msg.Type == tea.KeyF1 || string(msg.Runes) == "?" {
+
+		// ── Page keys: F1 = feed, F2 = threads (work regardless of settings) ──
+		if msg.Type == tea.KeyF1 {
+			m.page = pageFeed
+			m.configOpen = false
+			return m, nil
+		}
+
+		if msg.Type == tea.KeyF2 || msg.Type == tea.KeyCtrlT {
+			m.page = pageThreads
+			m.configOpen = false
+			cmds := []tea.Cmd{}
+			if m.config.ThreadsUser != "" && !m.threads.loaded {
+				m.threads.reset()
+				m.threads.loading = true
+				cmds = append(cmds, fetchThreadsCmd(m.config.ThreadsUser))
+			}
+			return m, tea.Batch(cmds...)
+		}
+
+		// ── Settings toggle: F10 or ? ──
+		if msg.Type == tea.KeyF10 || string(msg.Runes) == "?" {
 			m.configOpen = !m.configOpen
 			m.configCur = 0
 			return m, nil
 		}
+
+		// ── Page switching (outside config) ──
+		if !m.configOpen {
+			switch {
+			case msg.Type == tea.KeyLeft:
+				if m.page == pageThreads {
+					m.page = pageFeed
+				}
+				return m, nil
+			case msg.Type == tea.KeyRight:
+				if m.page == pageFeed {
+					m.page = pageThreads
+					cmds := []tea.Cmd{}
+					if m.config.ThreadsUser != "" && !m.threads.loaded {
+						m.threads.reset()
+						m.threads.loading = true
+						cmds = append(cmds, fetchThreadsCmd(m.config.ThreadsUser))
+					}
+					return m, tea.Batch(cmds...)
+				}
+				return m, nil
+			}
+		}
+
+		// ── When on threads page (outside config) ──
+		if !m.configOpen && m.page == pageThreads {
+			if m.threads.loaded && len(m.threads.flatLines) > 0 {
+				// Find current line in flatLines
+				curLine := findNodeLine(m.threads.flatLines, m.threads.cursor)
+				if curLine < 0 {
+					curLine = 0
+					if len(m.threads.flatLines) > 0 {
+						m.threads.cursor = m.threads.flatLines[0].nodeIdx
+					}
+				}
+
+				contentH := m.height - 2 - 2 // minus header, status, border top/bottom
+				if contentH < 1 {
+					contentH = 1
+				}
+
+				// First check for Enter/Space to toggle collapse
+				if msg.Type == tea.KeyEnter || msg.Type == tea.KeySpace || (len(msg.Runes) > 0 && msg.Runes[0] == ' ') {
+					threadW := m.width - 4
+					if threadW < 10 {
+						threadW = 80
+					}
+					m.threads.toggleCollapse(m.threads.cursor, threadW)
+					// Re-clamp scroll after flatten
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					if m.threads.scroll > maxS {
+						m.threads.scroll = maxS
+					}
+					return m, nil
+				}
+
+				switch {
+				case msg.Type == tea.KeyUp:
+					newIdx := prevVisibleNode(m.threads.flatLines, curLine)
+					if newIdx >= 0 {
+						m.threads.cursor = newIdx
+						// Auto-scroll: if cursor is above view, scroll up
+						newLine := findNodeLine(m.threads.flatLines, newIdx)
+						if newLine < m.threads.scroll {
+							m.threads.scroll = newLine
+						}
+					}
+				case msg.Type == tea.KeyDown:
+					newIdx := nextVisibleNode(m.threads.flatLines, curLine)
+					if newIdx >= 0 {
+						m.threads.cursor = newIdx
+						// Auto-scroll: if cursor is below view, scroll down
+						newLine := findNodeLine(m.threads.flatLines, newIdx)
+						if newLine >= m.threads.scroll+contentH {
+							m.threads.scroll = newLine - contentH + 1
+						}
+					}
+				case msg.Type == tea.KeyPgUp:
+					m.threads.scroll -= contentH
+					if m.threads.scroll < 0 {
+						m.threads.scroll = 0
+					}
+					// Move cursor to first visible node
+					if len(m.threads.flatLines) > 0 {
+						m.threads.cursor = m.threads.flatLines[m.threads.scroll].nodeIdx
+					}
+				case msg.Type == tea.KeyPgDown:
+					m.threads.scroll += contentH
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					if m.threads.scroll > maxS {
+						m.threads.scroll = maxS
+					}
+					// Move cursor to first visible node
+					if len(m.threads.flatLines) > 0 {
+						m.threads.cursor = m.threads.flatLines[m.threads.scroll].nodeIdx
+					}
+				case msg.Type == tea.KeyHome:
+					m.threads.scroll = 0
+					if len(m.threads.flatLines) > 0 {
+						m.threads.cursor = m.threads.flatLines[0].nodeIdx
+					}
+				case msg.Type == tea.KeyEnd:
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					m.threads.scroll = maxS
+					if len(m.threads.flatLines) > 0 {
+						m.threads.cursor = m.threads.flatLines[len(m.threads.flatLines)-1].nodeIdx
+					}
+				}
+			}
+			return m, nil
+		}
+
+		// ── Config overlay key handling ──
 		if m.configOpen {
 			fields := m.configFields()
-			switch {
-			case msg.Type == tea.KeyUp:
+
+			// Navigation always works
+			if msg.Type == tea.KeyUp {
 				if m.configCur > 0 {
 					m.configCur--
 				}
-			case msg.Type == tea.KeyDown:
+				return m, nil
+			}
+			if msg.Type == tea.KeyDown {
 				if m.configCur < len(fields)-1 {
 					m.configCur++
 				}
+				return m, nil
+			}
+
+			// Text input for cfgThreadsUser
+			if m.configCur < len(fields) && fields[m.configCur] == cfgThreadsUser {
+				switch {
+				case msg.Type == tea.KeyBackspace:
+					if len(m.config.ThreadsUser) > 0 {
+						m.config.ThreadsUser = m.config.ThreadsUser[:len(m.config.ThreadsUser)-1]
+						saveSettings(m.config)
+					}
+				case msg.Type == tea.KeyEsc:
+					m.configOpen = false
+				case len(msg.Runes) > 0:
+					m.config.ThreadsUser += string(msg.Runes)
+					saveSettings(m.config)
+				}
+				return m, nil
+			}
+
+			// Numeric / toggle adjustments
+			switch {
 			case msg.Type == tea.KeyLeft, string(msg.Runes) == "-":
 				if fields[m.configCur] == cfgPollSlider {
 					m.config.PollSeconds -= 5
@@ -270,17 +457,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+
 		return m, nil
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				m.st.scroll += 4
-			case tea.MouseButtonWheelDown:
-				m.st.scroll -= 4
-				if m.st.scroll < 0 {
-					m.st.scroll = 0
+			if m.page == pageFeed {
+				switch msg.Button {
+				case tea.MouseButtonWheelUp:
+					m.st.scroll += 4
+				case tea.MouseButtonWheelDown:
+					m.st.scroll -= 4
+					if m.st.scroll < 0 {
+						m.st.scroll = 0
+					}
+				}
+			} else if m.page == pageThreads {
+				contentH := m.height - 2 - 2
+				if contentH < 1 {
+					contentH = 1
+				}
+				switch msg.Button {
+				case tea.MouseButtonWheelUp:
+					m.threads.scroll -= 3
+					if m.threads.scroll < 0 {
+						m.threads.scroll = 0
+					}
+				case tea.MouseButtonWheelDown:
+					m.threads.scroll += 3
+					maxS := len(m.threads.flatLines) - contentH
+					if maxS < 0 {
+						maxS = 0
+					}
+					if m.threads.scroll > maxS {
+						m.threads.scroll = maxS
+					}
 				}
 			}
 		}
@@ -481,6 +692,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		return m, nil
+	case threadsResultMsg:
+		m.threads.applyResult(msg)
+		// Flatten the tree immediately so Update() has flatLines for navigation.
+		if m.threads.loaded && m.threads.forest != nil {
+			w := m.width - 4
+			if w < 10 {
+				w = 80
+			}
+			m.threads.flatLines = flattenForest(m.threads.forest, w)
+			m.threads.lastWidth = w
+			// Set cursor to first valid node so it's visible immediately
+			for _, li := range m.threads.flatLines {
+				if li.nodeIdx >= 0 {
+					m.threads.cursor = li.nodeIdx
+					break
+				}
+			}
+		}
 		return m, nil
 	}
 

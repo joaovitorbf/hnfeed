@@ -10,20 +10,50 @@ HN "new" and front page into one chronological stream using
 
 | File | Responsibility |
 |---|---|
-| `hn.go` | `Item` struct and HN API fetchers |
-| `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.), feed styles (`feedBorder`, `statusBarStyle`), and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
+| `hn.go` | `Item`/`User` structs and HN API fetchers (stories, comments, users) |
+| `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.), feed/threads styles, and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
 | `config.go` | Configuration struct and JSON persistence |
 | `feed.go` | Entry type constants (`entryType`), `feedEntry` struct, `feedState` struct, `appendEntry`, `totalLines` |
 | `format.go` | Entry formatters (`formatNewItemLines`, `formatFrontEventLines`, `formatFrontLeaveLine`) |
+| `threads.go` | Thread tree state (`threadNode`, `threadLineInfo`, `threadsState`), tree building (`buildThreadForest`, `buildReplyNode`), flattening with word-wrap and tree connectors (`flattenForest`, `flattenNode`), HTML stripping, word wrapping, cursor navigation helpers, and the threads fetch command |
 | `main.go` | Entry point, program setup |
-| `model.go` | Bubbletea model, messages, commands, update loop |
-| `view.go` | Rendering: header, feed panel (bordered), settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), `formatEntry` dispatch, status bar |
+| `model.go` | Bubbletea model, page enum (`pageFeed`, `pageThreads`), messages, commands, update loop including page switching and threads navigation |
+| `view.go` | Rendering: header (page-aware), feed panel, threads panel (tree with cursor highlight), settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), `formatEntry` dispatch, status bar (context-dependent) |
 
 ## API
 
 `https://hacker-news.firebaseio.com/v0` — `/newstories.json` (newest IDs),
-`/topstories.json` (front-page rank order), `/item/<id>.json` (details).
+`/topstories.json` (front-page rank order), `/item/<id>.json` (details),
+`/user/<username>.json` (user profile + submitted IDs).
 Fetches parallelised via goroutines + semaphore channel.
+
+### Item struct
+
+Extended to support comments in addition to stories:
+
+| Field | Type | Description |
+|---|---|---|
+| `ID` | `int` | Unique identifier |
+| `Title` | `string` | Story/poll title (empty for comments) |
+| `URL` | `string` | Story URL |
+| `Score` | `int` | Story score or pollopt votes |
+| `Descendants` | `int` | Total comment count |
+| `Time` | `int64` | Unix timestamp |
+| `Type` | `string` | `"story"`, `"comment"`, `"job"`, `"poll"`, `"pollopt"` |
+| `By` | `string` | Author username |
+| `Text` | `string` | Comment/story text (HTML) |
+| `Parent` | `int` | Parent item ID (comments only) |
+| `Kids` | `[]int` | Child comment IDs |
+| `Deleted` | `bool` | `true` if deleted |
+| `Dead` | `bool` | `true` if dead |
+
+### Fetch helpers
+
+- `fetchItem(id)` — fetches a story by ID (filters items without title)
+- `fetchItemByID(id)` — fetches any item type without filtering (used for comments)
+- `fetchItemsParallel(ids, throttle)` — parallel story fetcher (sorts by time)
+- `fetchItemsParallelAny(ids, throttle)` — parallel fetcher for any item type
+- `fetchUser(username)` — returns `User` struct with `Submitted` IDs
 
 ## Poll cycle
 
@@ -64,10 +94,25 @@ Helper methods:
 
 See also `feedEntry` struct and `entryType` constants in `feed.go`. New entries are created with a `feedEntry{typ: ..., item: ..., prefix: ...}` literal and passed to `appendEntry`. Formatting is deferred to the view (see below).
 
+## Pages
+
+The app has two pages and a settings overlay:
+- **Feed** (`pageFeed`): The live unified HN feed (default on startup)
+- **Threads** (`pageThreads`): Tree view of a user's recent comments with replies
+- **Settings**: Overlay rendered on top of the current page
+
+Navigation:
+| Key | Action |
+|---|---|
+| `F1` | Switch to Feed page (closes settings if open) |
+| `F2` / `Ctrl+T` | Switch to Threads page (closes settings if open, triggers fetch if not loaded) |
+| `F10` / `?` | Toggle settings overlay |
+| `←` `→` | Switch between Feed and Threads pages |
+
 ## Settings
 
-Press `?` or `F1` to open the settings page (replaces the feed). Navigate with
-`↑`/`↓`, toggle filters with `Space`/`Enter`, adjust numeric values with `←`/`→`, close with `Esc`.
+Press `F10` or `?` to open the settings page (overlays the current page). Navigate with
+`↑`/`↓`, toggle filters with `Space`/`Enter`, adjust numeric values with `←`/`→`, type text for the Threads user field, close with `Esc`.
 
 ### Layout
 
@@ -89,6 +134,7 @@ The settings page is rendered inside a rounded-border panel:
 │                                                │
 │    Poll interval     30s  ◀  ▶                │
 │    Initial items       5  ◀  ▶                │
+│    Threads user  [joaof____]                   │
 │                                                │
 │  ↑↓ navigate  │  Space toggle  │  ←→ adjust  │  Esc close │
 ╰──────────────────────────────────────────────╯
@@ -116,6 +162,7 @@ The settings page is rendered inside a rounded-border panel:
 | `ShowNewStories` | `true` | Show new-story entries |
 | `PollSeconds` | `30` | Seconds between refreshes |
 | `InitialItems` | `5` | Stories loaded from each source on startup |
+| `ThreadsUser` | `""` | HN username for the Threads page |
 
 Sub-options (`FrontEntered`, `FrontRankUp`, `FrontRankUpPeak`, `FrontRankDown`, `FrontRankDownWorst`, `FrontLeft`) are
 indented under **Front page events** in the settings UI and are only shown
@@ -128,15 +175,14 @@ affects newly arriving entries — existing ones in the buffer remain visible.
 
 ## Visual design
 
-Both the main feed and the settings panel use rounded-border panels with a
-cyan (`lipgloss.Color("6")`) border, creating a consistent Charmbracelet-style
-look.
+All panels use rounded-border panels with a cyan (`lipgloss.Color("6")`) border,
+creating a consistent Charmbracelet-style look.
 
-- **Feed panel**: Wrapped in a `feedBorder` (rounded, cyan) that replaces the
-  old plain divider line. Content width inside the border is `innerW = w - 4`.
-- **Status bar**: Uses `statusBarStyle` (cyan background, white bold text)
-  instead of the old plain-blue bar.
-- **Header**: Bold cyan ` HN Feed ` with a gray scroll hint on the right.
+- **Feed panel**: Wrapped in `feedBorder` (rounded, cyan). Content inside is `innerW = w - 4`.
+- **Threads panel**: Same border as feed. Content rendered from pre-flattened `flatLines` with cursor highlight.
+- **Settings panel**: Same border, with sections and text input for username.
+- **Status bar**: `statusBarStyle` (cyan background, white bold text). Context-dependent — shows different hints on feed, threads, and settings pages.
+- **Header**: Bold cyan, shows ` HN Feed ` or ` HN Threads ` depending on current page, with a gray scroll hint.
 
 ### Entry formatting — render-time
 
@@ -159,7 +205,7 @@ missing or corrupt, defaults are used.
 
 `Init()` launches async `seedFeedCmd`. On `seedResultMsg`: populate
 `frontRanks` silently, emit `InitialItems` front-page entries + newest stories,
-set `ready = true` to begin live polls.
+set `ready = true` to begin live polls. Threads page is loaded lazily when the user navigates to it.
 
 ## Running
 
@@ -167,17 +213,21 @@ set `ready = true` to begin live polls.
 go build -o hnfeed .
 ```
 
-Requires Go 1.26+. `Ctrl+C` to exit, `?`/`F1` for settings.
+Requires Go 1.26+. `Ctrl+C` to exit, `F1` for feed, `F2`/`Ctrl+T` for threads,
+`F10`/`?` for settings.
 
 ## Guidelines
 
-- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state/entry structs), `main.go` (entry point). No build tags.
+- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state/entry structs), `threads.go` (thread tree state & flattening), `main.go` (entry point). No build tags.
 - Use `fit`/`truncPad` from `style.go` for ANSI-safe width accounting.
-- Every entry produces exactly 4 lines. The `totalLines()` helper computes `len(entries) * 4`.
-- Use `m.st.appendEntry(feedEntry{...})` to add entries. Do **not** call formatters at event time — create a `feedEntry` and let the view format it at render time.
+- Every feed entry produces exactly 4 lines. The `totalLines()` helper computes `len(entries) * 4`.
+- Thread entries have variable height (word-wrapped comment text). Flat lines are pre-computed during `Update()` (not in `View()`) via `flattenForest()` and stored in `threadsState.flatLines`. `View()` only reads and renders them.
+- Use `m.st.appendEntry(feedEntry{...})` to add feed entries. Do **not** call formatters at event time — create a `feedEntry` and let the view format it at render time.
 - Trimming (capped at 500 entries / ~2000 lines) operates on `entries`, not lines: `trim * 4` when adjusting scroll.
 - Populate `frontRanks` for all 30 items at startup before first live poll.
 - Wrap network calls — never crash on transient API failure.
 - Commands must never mutate model directly; send messages to `Update`.
+- Model state must be mutated in `Update()` and returned — never in `View()` (value copy). The threads tree is flattened in `Update()` handlers (`threadsResultMsg`, `WindowSizeMsg`, `toggleCollapse`), not in `View()`.
+- ANSI cursor highlighting on thread lines uses manual escape codes (`\033[48;5;237m` / `\033[49m`) and replaces lipgloss's full resets (`\033[0m`) with foreground-only resets (`resetFgBold = \033[39;22m`) to preserve the cursor background across styled segments.
 - Avoid verbose comments. Keep inline comments minimal — the code should be self-documenting.
-- All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body) unless absolutely necessary.
+- All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body).

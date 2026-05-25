@@ -13,7 +13,7 @@ import (
 
 const baseURL = "https://hacker-news.firebaseio.com/v0"
 
-// Item represents a Hacker News story.
+// Item represents a Hacker News item (story, comment, job, poll, pollopt).
 type Item struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
@@ -21,6 +21,22 @@ type Item struct {
 	Score       int    `json:"score"`
 	Descendants int    `json:"descendants"`
 	Time        int64  `json:"time"`
+	Type        string `json:"type"`
+	By          string `json:"by"`
+	Text        string `json:"text"`
+	Parent      int    `json:"parent"`
+	Kids        []int  `json:"kids"`
+	Deleted     bool   `json:"deleted"`
+	Dead        bool   `json:"dead"`
+}
+
+// User represents a HN user from /v0/user/<id>.json.
+type User struct {
+	ID        string `json:"id"`
+	Created   int64  `json:"created"`
+	Karma     int    `json:"karma"`
+	About     string `json:"about"`
+	Submitted []int  `json:"submitted"`
 }
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
@@ -43,6 +59,59 @@ func fetchItem(id int) *Item {
 		return nil
 	}
 	return &item
+}
+
+// fetchItemByID fetches any HN item by ID without filtering by title.
+func fetchItemByID(id int) *Item {
+	var item Item
+	if err := fetchJSON(fmt.Sprintf("%s/item/%d.json", baseURL, id), &item); err != nil {
+		return nil
+	}
+	if item.ID == 0 {
+		return nil
+	}
+	return &item
+}
+
+// fetchItemsParallelAny fetches items in parallel (throttled by a semaphore)
+// using fetchItemByID (which accepts any item type, not just stories).
+func fetchItemsParallelAny(ids []int, throttle int) []*Item {
+	if len(ids) == 0 {
+		return nil
+	}
+	results := make([]*Item, len(ids))
+	sem := make(chan struct{}, throttle)
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Add(1)
+		i, id := i, id
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results[i] = fetchItemByID(id)
+		}()
+	}
+	wg.Wait()
+
+	var items []*Item
+	for _, item := range results {
+		if item != nil {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+func fetchUser(username string) (*User, error) {
+	var user User
+	if err := fetchJSON(fmt.Sprintf("%s/user/%s.json", baseURL, username), &user); err != nil {
+		return nil, err
+	}
+	if user.ID == "" {
+		return nil, fmt.Errorf("user not found: %s", username)
+	}
+	return &user, nil
 }
 
 // fetchItemsParallel fetches items in parallel (throttled by a semaphore),

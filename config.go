@@ -10,16 +10,17 @@ import (
 const settingsFile = "hnfeed-settings.json"
 
 type feedConfig struct {
-	ShowFrontPage      bool `json:"show_front_page"`
-	ShowNewStories     bool `json:"show_new_stories"`
-	FrontEntered       bool `json:"front_entered"`
-	FrontRankUp        bool `json:"front_rank_up"`
-	FrontRankUpPeak    bool `json:"front_rank_up_peak"`
-	FrontRankDown      bool `json:"front_rank_down"`
-	FrontRankDownWorst bool `json:"front_rank_down_worst"`
-	FrontLeft          bool `json:"front_left"`
-	PollSeconds        int  `json:"poll_seconds"`
-	InitialItems       int  `json:"initial_items"`
+	ShowFrontPage      bool   `json:"show_front_page"`
+	ShowNewStories     bool   `json:"show_new_stories"`
+	FrontEntered       bool   `json:"front_entered"`
+	FrontRankUp        bool   `json:"front_rank_up"`
+	FrontRankUpPeak    bool   `json:"front_rank_up_peak"`
+	FrontRankDown      bool   `json:"front_rank_down"`
+	FrontRankDownWorst bool   `json:"front_rank_down_worst"`
+	FrontLeft          bool   `json:"front_left"`
+	PollSeconds        int    `json:"poll_seconds"`
+	InitialItems       int    `json:"initial_items"`
+	ThreadsUser        string `json:"threads_user"`
 }
 
 func loadSettings() feedConfig {
