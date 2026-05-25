@@ -98,7 +98,14 @@ See also `feedEntry` struct and `entryType` constants in `feed.go`. New entries 
 
 The app has two pages and a settings overlay:
 - **Feed** (`pageFeed`): The live unified HN feed (default on startup)
-- **Threads** (`pageThreads`): Tree view of a user's recent comments with replies
+- **Threads** (`pageThreads`): Tree view of a user's recent comments with replies.
+  Each thread is built from one user comment. The tree structure is:
+  parent context (what the user replied to, depth 0, `isParent`) →
+  user's comment (depth 1, `isUser`) → nested replies (depth 2+).
+  This matches [HN's own threads view](https://news.ycombinator.com/threads).
+  Every user comment gets its own thread entry in the forest, even if
+  one comment replies to another user comment — the parent appears as
+  the context line of the child's thread.
 - **Settings**: Overlay rendered on top of the current page
 
 Navigation:
