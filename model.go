@@ -199,8 +199,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// ── Page keys: F1 = feed, F2 = threads (work regardless of settings) ──
-		if msg.Type == tea.KeyF1 {
+		// ── Page keys: F1/Ctrl+F = feed, F2/Ctrl+T = threads (work regardless of settings) ──
+		if msg.Type == tea.KeyF1 || msg.Type == tea.KeyCtrlF {
 			m.page = pageFeed
 			m.configOpen = false
 			return m, nil

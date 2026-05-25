@@ -454,19 +454,19 @@ func checkboxStr(on bool) string {
 
 func (m model) statusText() string {
 	if m.configOpen {
-		return "F1 feed  │  F2 threads  │  Ctrl+C to quit"
+		return "F1/Ctrl+F feed  │  F2/Ctrl+T threads  │  Ctrl+C to quit"
 	}
 	if m.page == pageThreads {
 		if m.config.ThreadsUser == "" {
-			return "No user configured — set in settings (F10/?)  │  F1 feed  │  Ctrl+C to quit"
+			return "No user configured — set in settings (F10/?)  │  F1/Ctrl+F feed  │  Ctrl+C to quit"
 		}
 		if m.threads.loading {
-			return fmt.Sprintf("Loading threads for %s…  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
+			return fmt.Sprintf("Loading threads for %s…  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
 		}
 		if !m.threads.loaded {
-			return fmt.Sprintf("Set a user in settings, then press F2  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit")
+			return fmt.Sprintf("Set a user in settings, then press F2/Ctrl+T  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit")
 		}
-		return fmt.Sprintf("Threads for %s  │  ↑↓ Space navigate  │  F1 feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
+		return fmt.Sprintf("Threads for %s  │  ↑↓ Space navigate  │  F1/Ctrl+F feed  │  F10/? settings  │  Ctrl+C to quit", m.config.ThreadsUser)
 	}
 
 	if !m.ready {
@@ -483,5 +483,5 @@ func (m model) statusText() string {
 	} else {
 		tStr = fmt.Sprintf("%ds", remaining)
 	}
-	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  F2 threads  │  F10/? settings  │  Ctrl+C to quit", tStr, m.st.totalItems)
+	return fmt.Sprintf("Next refresh in %s  │  Items seen: %d  │  F2/Ctrl+T threads  │  F10/? settings  │  Ctrl+C to quit", tStr, m.st.totalItems)
 }

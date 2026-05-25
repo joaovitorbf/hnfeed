@@ -104,7 +104,7 @@ The app has two pages and a settings overlay:
 Navigation:
 | Key | Action |
 |---|---|
-| `F1` | Switch to Feed page (closes settings if open) |
+| `F1` / `Ctrl+F` | Switch to Feed page (closes settings if open) |
 | `F2` / `Ctrl+T` | Switch to Threads page (closes settings if open, triggers fetch if not loaded) |
 | `F10` / `?` | Toggle settings overlay |
 | `←` `→` | Switch between Feed and Threads pages |
@@ -181,7 +181,7 @@ creating a consistent Charmbracelet-style look.
 - **Feed panel**: Wrapped in `feedBorder` (rounded, cyan). Content inside is `innerW = w - 4`.
 - **Threads panel**: Same border as feed. Content rendered from pre-flattened `flatLines` with cursor highlight.
 - **Settings panel**: Same border, with sections and text input for username.
-- **Status bar**: `statusBarStyle` (cyan background, white bold text). Context-dependent — shows different hints on feed, threads, and settings pages.
+- **Status bar**: `statusBarStyle` (cyan background, white bold text). Context-dependent — shows different hints on feed, threads, and settings pages. Shortcuts are shown as `F1/Ctrl+F` format (function key first, Ctrl shortcut second).
 - **Header**: Bold cyan, shows ` HN Feed ` or ` HN Threads ` depending on current page, with a gray scroll hint.
 
 ### Entry formatting — render-time
@@ -213,7 +213,7 @@ set `ready = true` to begin live polls. Threads page is loaded lazily when the u
 go build -o hnfeed .
 ```
 
-Requires Go 1.26+. `Ctrl+C` to exit, `F1` for feed, `F2`/`Ctrl+T` for threads,
+Requires Go 1.26+. `Ctrl+C` to exit, `F1`/`Ctrl+F` for feed, `F2`/`Ctrl+T` for threads,
 `F10`/`?` for settings.
 
 ## Guidelines
