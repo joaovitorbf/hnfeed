@@ -248,6 +248,7 @@ Requires Go 1.26+. `Ctrl+C` to exit, `F1`/`Ctrl+F` for feed, `F2`/`Ctrl+T` for t
 - Wrap network calls — never crash on transient API failure.
 - Commands must never mutate model directly; send messages to `Update`.
 - Model state must be mutated in `Update()` and returned — never in `View()` (value copy). The threads tree is flattened in `Update()` handlers (`threadsResultMsg`, `WindowSizeMsg`, `toggleCollapse`), not in `View()`.
+- Model helper methods that need to mutate state and return a `tea.Cmd` in a single call use pointer receiver (`*model`), e.g. `maybeRefreshThreads()`. Normal model methods on `Init`/`Update` use value receiver per bubbletea convention.
 - ANSI cursor highlighting on thread lines uses manual escape codes (`\033[48;5;237m` / `\033[49m`) and replaces lipgloss's full resets (`\033[0m`) with foreground-only resets (`resetFgBold = \033[39;22m`) to preserve the cursor background across styled segments.
 - Avoid verbose comments. Keep inline comments minimal — the code should be self-documenting.
 - All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body).

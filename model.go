@@ -178,6 +178,22 @@ func (m model) configFields() []cfgField {
 	return fields
 }
 
+// maybeRefreshThreads checks if ThreadsUser has changed and triggers a refetch
+// or reset if so. Returns a command if a fetch is needed, nil otherwise.
+func (m *model) maybeRefreshThreads() tea.Cmd {
+	if m.config.ThreadsUser == m.lastThreadsUser {
+		return nil
+	}
+	m.lastThreadsUser = m.config.ThreadsUser
+	if m.config.ThreadsUser == "" {
+		m.threads.reset()
+		return nil
+	}
+	m.threads.reset()
+	m.threads.loading = true
+	return fetchThreadsCmd(m.config.ThreadsUser)
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -204,14 +220,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyF1 || msg.Type == tea.KeyCtrlF {
 			m.page = pageFeed
 			m.configOpen = false
-			if m.config.ThreadsUser != m.lastThreadsUser {
-				m.lastThreadsUser = m.config.ThreadsUser
-				if m.config.ThreadsUser != "" {
-					m.threads.reset()
-					m.threads.loading = true
-					return m, fetchThreadsCmd(m.config.ThreadsUser)
-				}
-				m.threads.reset()
+			if cmd := m.maybeRefreshThreads(); cmd != nil {
+				return m, cmd
 			}
 			return m, nil
 		}
@@ -219,14 +229,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyF2 || msg.Type == tea.KeyCtrlT {
 			m.page = pageThreads
 			m.configOpen = false
-			cmds := []tea.Cmd{}
-			if m.config.ThreadsUser != "" && (!m.threads.loaded || m.config.ThreadsUser != m.lastThreadsUser) {
+			if m.config.ThreadsUser != "" && !m.threads.loaded {
 				m.lastThreadsUser = m.config.ThreadsUser
 				m.threads.reset()
 				m.threads.loading = true
-				cmds = append(cmds, fetchThreadsCmd(m.config.ThreadsUser))
+				return m, fetchThreadsCmd(m.config.ThreadsUser)
 			}
-			return m, tea.Batch(cmds...)
+			if cmd := m.maybeRefreshThreads(); cmd != nil {
+				return m, cmd
+			}
+			return m, nil
 		}
 
 		// ── Settings toggle: F10 or ? ──
@@ -387,14 +399,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				case msg.Type == tea.KeyEsc:
 					m.configOpen = false
-					if m.config.ThreadsUser != m.lastThreadsUser {
-						m.lastThreadsUser = m.config.ThreadsUser
-						if m.config.ThreadsUser != "" {
-							m.threads.reset()
-							m.threads.loading = true
-							return m, fetchThreadsCmd(m.config.ThreadsUser)
-						}
-						m.threads.reset()
+					if cmd := m.maybeRefreshThreads(); cmd != nil {
+						return m, cmd
 					}
 				case len(msg.Runes) > 0:
 					m.config.ThreadsUser += string(msg.Runes)
@@ -477,14 +483,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				saveSettings(m.config)
 			case msg.Type == tea.KeyEsc:
 				m.configOpen = false
-				if m.config.ThreadsUser != m.lastThreadsUser {
-					m.lastThreadsUser = m.config.ThreadsUser
-					if m.config.ThreadsUser != "" {
-						m.threads.reset()
-						m.threads.loading = true
-						return m, fetchThreadsCmd(m.config.ThreadsUser)
-					}
-					m.threads.reset()
+				if cmd := m.maybeRefreshThreads(); cmd != nil {
+					return m, cmd
 				}
 			}
 			return m, nil
