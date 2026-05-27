@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // ── Entry types ───────────────────────────────────────────────────────────────
 
 type entryType int
@@ -19,6 +21,7 @@ type feedEntry struct {
 	item    *Item
 	prefix  string // e.g. "★ #3  ", "↑ #3 (was #7)  ", "✕ #28  "
 	oldRank int    // used for leave events
+	time    time.Time
 }
 
 // ── Feed state ────────────────────────────────────────────────────────────────
@@ -38,6 +41,7 @@ type feedState struct {
 // appendEntry adds an entry and advances scroll if the user is scrolled up,
 // keeping the viewport stable.
 func (s *feedState) appendEntry(e feedEntry) {
+	e.time = time.Now()
 	s.entries = append(s.entries, e)
 	s.totalItems++
 	if s.scroll > 0 {

@@ -220,13 +220,13 @@ func (m model) formatEntry(e feedEntry, width int) []string {
 	case entryNew:
 		return formatNewItemLines(e.item, width)
 	case entryFrontEnter:
-		return formatFrontEventLines(e.item, e.prefix, width)
+		return formatFrontEventLines(e.item, e.prefix, e.time, width)
 	case entryFrontUp:
-		return formatFrontEventLines(e.item, e.prefix, width)
+		return formatFrontEventLines(e.item, e.prefix, e.time, width)
 	case entryFrontDown:
-		return formatFrontEventLines(e.item, e.prefix, width)
+		return formatFrontEventLines(e.item, e.prefix, e.time, width)
 	case entryFrontLeave:
-		return formatFrontLeaveLine(e.item, e.oldRank, width)
+		return formatFrontLeaveLine(e.item, e.oldRank, e.time, width)
 	}
 	return []string{"", "", "", ""}
 }

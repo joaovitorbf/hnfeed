@@ -47,8 +47,8 @@ func formatNewItemLines(item *Item, width int) []string {
 //	  article URL
 //	  Comments: HN URL
 //	(blank)
-func formatFrontEventLines(item *Item, prefix string, width int) []string {
-	t := time.Now().Format("15:04:05")
+func formatFrontEventLines(item *Item, prefix string, t time.Time, width int) []string {
+	tStr := t.Format("15:04:05")
 	metaPlain := fmt.Sprintf("[%d▲ %dc]", item.Score, item.Descendants)
 	const timeVisible = 11
 	avail := width - timeVisible - len([]rune(prefix)) - len([]rune(metaPlain)) - 1
@@ -57,7 +57,7 @@ func formatFrontEventLines(item *Item, prefix string, width int) []string {
 	}
 	title := truncPad(item.Title, avail)
 	return []string{
-		grayStyle.Render("["+t+"]") + " " + orangeStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
+		grayStyle.Render("["+tStr+"]") + " " + orangeStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
 		"  " + grayStyle.Render(itemURL(item)),
 		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
 		"",
@@ -65,8 +65,8 @@ func formatFrontEventLines(item *Item, prefix string, width int) []string {
 }
 
 // formatFrontLeaveLine returns the 4 feed lines for an item leaving the front page.
-func formatFrontLeaveLine(item *Item, oldRank int, width int) []string {
-	t := time.Now().Format("15:04:05")
+func formatFrontLeaveLine(item *Item, oldRank int, t time.Time, width int) []string {
+	tStr := t.Format("15:04:05")
 	metaPlain := fmt.Sprintf("[%d▲ %dc]", item.Score, item.Descendants)
 	const timeVisible = 11
 	prefix := fmt.Sprintf("✕ #%d  ", oldRank)
@@ -76,7 +76,7 @@ func formatFrontLeaveLine(item *Item, oldRank int, width int) []string {
 	}
 	title := truncPad(item.Title, avail)
 	return []string{
-		grayStyle.Render("["+t+"]") + " " + grayStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
+		grayStyle.Render("["+tStr+"]") + " " + grayStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
 		"  " + grayStyle.Render(itemURL(item)),
 		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
 		"",

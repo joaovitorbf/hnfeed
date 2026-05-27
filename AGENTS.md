@@ -89,10 +89,10 @@ rank drops, and items that left the top 30).
 | `totalItems` | Total entries ever appended |
 
 Helper methods:
-- `appendEntry(feedEntry)` — appends entry, increments `totalItems`, advances `scroll` by 4.
+- `appendEntry(feedEntry)` — appends entry, captures `time.Now()` as the entry's timestamp, increments `totalItems`, advances `scroll` by 4.
 - `totalLines()` — returns `len(entries) * 4` for scroll/viewport calculations.
 
-See also `feedEntry` struct and `entryType` constants in `feed.go`. New entries are created with a `feedEntry{typ: ..., item: ..., prefix: ...}` literal and passed to `appendEntry`. Formatting is deferred to the view (see below).
+See also `feedEntry` struct and `entryType` constants in `feed.go`. New entries are created with a `feedEntry{typ: ..., item: ..., prefix: ...}` literal and passed to `appendEntry`, which stamps the entry with the current time. Formatting is deferred to the view (see below). The timestamp is frozen at creation time — each entry shows when it was detected, not the live time.
 
 ## Pages
 
