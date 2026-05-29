@@ -108,7 +108,6 @@ func (m model) View() string {
 				}
 			}
 		} else {
-			// Render visible lines
 			totalLines := len(m.threads.flatLines)
 			maxScroll := totalLines - innerH
 			if maxScroll < 0 {

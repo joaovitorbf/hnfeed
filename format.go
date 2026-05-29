@@ -35,7 +35,7 @@ func formatNewItemLines(item *Item, width int) []string {
 	return []string{
 		grayStyle.Render("["+t+"]") + " " + yellowStyle.Render(title) + " " + grayStyle.Render("[NEW]"),
 		"  " + grayStyle.Render(itemURL(item)),
-		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
+		"  " + grayStyle.Render("Comments: "+commentURL(item.ID)),
 		"",
 	}
 }
@@ -59,7 +59,7 @@ func formatFrontEventLines(item *Item, prefix string, t time.Time, width int) []
 	return []string{
 		grayStyle.Render("["+tStr+"]") + " " + orangeStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
 		"  " + grayStyle.Render(itemURL(item)),
-		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
+		"  " + grayStyle.Render("Comments: "+commentURL(item.ID)),
 		"",
 	}
 }
@@ -78,9 +78,7 @@ func formatFrontLeaveLine(item *Item, oldRank int, t time.Time, width int) []str
 	return []string{
 		grayStyle.Render("["+tStr+"]") + " " + grayStyle.Render(prefix+title) + " " + grayStyle.Render(metaPlain),
 		"  " + grayStyle.Render(itemURL(item)),
-		"  " + grayStyle.Render("Comments: " + commentURL(item.ID)),
+		"  " + grayStyle.Render("Comments: "+commentURL(item.ID)),
 		"",
 	}
 }
-
-
