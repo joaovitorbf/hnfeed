@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -65,4 +67,55 @@ func saveSettings(cfg feedConfig) {
 		return
 	}
 	os.WriteFile(settingsFile, data, 0644)
+}
+
+// ── Config field descriptors ──────────────────────────────────────────────────
+
+type cfgField int
+
+const (
+	cfgFPToggle cfgField = iota
+	cfgFPEntered
+	cfgFPRankUp
+	cfgFrontRankUpPeak
+	cfgFPRankDown
+	cfgFrontRankDownWorst
+	cfgFPLeft
+	cfgNSToggle
+	cfgPollSlider
+	cfgInitItems
+	cfgThreadsUser
+)
+
+func (m model) configFields() []cfgField {
+	fields := []cfgField{cfgFPToggle}
+	if m.config.ShowFrontPage {
+		fields = append(fields, cfgFPEntered, cfgFPRankUp)
+		if m.config.FrontRankUp {
+			fields = append(fields, cfgFrontRankUpPeak)
+		}
+		fields = append(fields, cfgFPRankDown)
+		if m.config.FrontRankDown {
+			fields = append(fields, cfgFrontRankDownWorst)
+		}
+		fields = append(fields, cfgFPLeft)
+	}
+	fields = append(fields, cfgNSToggle, cfgPollSlider, cfgInitItems, cfgThreadsUser)
+	return fields
+}
+
+// maybeRefreshThreads checks if ThreadsUser has changed and triggers a refetch
+// or reset if so. Returns a command if a fetch is needed, nil otherwise.
+func (m *model) maybeRefreshThreads() tea.Cmd {
+	if m.config.ThreadsUser == m.lastThreadsUser {
+		return nil
+	}
+	m.lastThreadsUser = m.config.ThreadsUser
+	if m.config.ThreadsUser == "" {
+		m.threads.reset()
+		return nil
+	}
+	m.threads.reset()
+	m.threads.loading = true
+	return fetchThreadsCmd(m.config.ThreadsUser)
 }

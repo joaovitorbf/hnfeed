@@ -12,12 +12,14 @@ HN "new" and front page into one chronological stream using
 |---|---|
 | `hn.go` | `Item`/`User` structs and HN API fetchers (stories, comments, users) |
 | `style.go` | Lipgloss styles, ANSI-safe text helpers (`fit`, `truncPad`), settings-panel styles (`configBorder`, `cursorStyle`, etc.), feed/threads styles, and manual ANSI checkbox constants (`greenCheck`, `grayCheck`, `resetFgBold`) |
-| `config.go` | Configuration struct and JSON persistence |
+| `config.go` | Configuration struct, JSON persistence, config field descriptors (`cfgField`, `configFields`), and `maybeRefreshThreads` |
 | `feed.go` | Entry type constants (`entryType`), `feedEntry` struct, `feedState` struct, `appendEntry`, `totalLines` |
 | `format.go` | Entry formatters (`formatNewItemLines`, `formatFrontEventLines`, `formatFrontLeaveLine`) |
 | `threads.go` | Thread tree state (`threadNode`, `threadLineInfo`, `threadsState`), tree building (`buildThreadForest`, `buildReplyNode`), flattening with word-wrap and tree connectors (`flattenForest`, `flattenNode`), HTML stripping, word wrapping, cursor navigation helpers, and the threads fetch command |
 | `main.go` | Entry point, program setup |
-| `model.go` | Bubbletea model, page enum (`pageFeed`, `pageThreads`), messages, commands, update loop with extracted handler methods (`handleKeyMsg`, `handleGlobalKey`, `handleThreadsKey`, `handleConfigKey`, `handleMouseMsg`, `handleWindowSizeMsg`, `handleSeedResult`, `handleTickMsg`, `handlePollResult`, `handleThreadsResult`) and helpers (`threadContentWidth`, `contentHeight`, `clampThreadScroll`) |
+| `model.go` | Bubbletea model struct, page enum (`pageFeed`, `pageThreads`), messages, `Init()`, and `Update()` dispatcher |
+| `commands.go` | Commands (`seedFeedCmd`, `pollNowCmd`) |
+| `handlers.go` | Message handlers (`handleKeyMsg`, `handleGlobalKey`, `handleThreadsKey`, `handleConfigKey`, `handleMouseMsg`, `handleWindowSizeMsg`, `handleSeedResult`, `handleTickMsg`, `handlePollResult`, `handleThreadsResult`) and helpers (`threadContentWidth`, `contentHeight`, `clampThreadScroll`) |
 | `view.go` | Rendering: header (page-aware), feed panel, threads panel (tree with cursor highlight), settings overlay (`buildConfigLines`, `configFieldLine`, `sectionDivider`, `buildHelpLine`, `checkboxStr`), `formatEntry` dispatch, status bar (context-dependent) |
 
 ## API
@@ -239,7 +241,7 @@ Requires Go 1.26+. `Ctrl+C` to exit, `F1`/`Ctrl+F` for feed, `F2`/`Ctrl+T` for t
 
 ## Guidelines
 
-- Split logic across `hn.go` (API), `model.go` (tea model/update), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings), `style.go` (lipgloss styles/helpers), `feed.go` (state/entry structs), `threads.go` (thread tree state & flattening), `main.go` (entry point). No build tags.
+- Split logic across `hn.go` (API), `model.go` (tea model/Init/Update dispatch), `commands.go` (bubbletea commands), `handlers.go` (Update message handlers), `view.go` (rendering), `format.go` (entry formatting), `config.go` (settings + config field descriptors), `style.go` (lipgloss styles/helpers), `feed.go` (state/entry structs), `threads.go` (thread tree state & flattening), `main.go` (entry point). No build tags.
 - Use `fit`/`truncPad` from `style.go` for ANSI-safe width accounting.
 - Every feed entry produces exactly 4 lines. The `totalLines()` helper computes `len(entries) * 4`.
 - Thread entries have variable height (word-wrapped comment text). Flat lines are pre-computed during `Update()` (not in `View()`) via `flattenForest()` and stored in `threadsState.flatLines`. `View()` only reads and renders them.
@@ -252,4 +254,4 @@ Requires Go 1.26+. `Ctrl+C` to exit, `F1`/`Ctrl+F` for feed, `F2`/`Ctrl+T` for t
 - Model helper methods that need to mutate state and return a `tea.Cmd` in a single call use pointer receiver (`*model`), e.g. `maybeRefreshThreads()`. Normal model methods on `Init`/`Update` use value receiver per bubbletea convention. Handler methods and helpers extracted from `Update` also use pointer receiver (`*model`) since they mutate the model.
 - ANSI cursor highlighting on thread lines uses manual escape codes (`\033[48;5;237m` / `\033[49m`) and replaces lipgloss's full resets (`\033[0m`) with foreground-only resets (`resetFgBold = \033[39;22m`) to preserve the cursor background across styled segments.
 - Avoid verbose comments. Keep inline comments minimal — the code should be self-documenting.
-- All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body).
+- All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) and use title only (no body); must not contain AI-generated signatures or attribution lines.
